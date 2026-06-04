@@ -67,6 +67,24 @@ def route_query(query: str) -> Dict[str, Any]:
         else:
             strategy = "hybrid"
             reason = "Query demands both structural context and factual text content (default hybrid RAG)."
+            
+        # Proper noun heuristic: override vector to hybrid if query contains proper nouns (potential entities)
+        if strategy == "vector":
+            words_raw = query.split()
+            has_proper_noun = False
+            for idx, w in enumerate(words_raw):
+                if w and w[0].isupper():
+                    clean_w = "".join(c for c in w if c.isalnum())
+                    clean_lower = clean_w.lower()
+                    if clean_lower not in {
+                        "is", "the", "a", "an", "of", "and", "in", "on", "at", "to", "for", "with", "by", "about", "your", "my", "our",
+                        "what", "who", "where", "how", "why", "define", "explain", "describe", "detail", "list", "summary"
+                    }:
+                        has_proper_noun = True
+                        break
+            if has_proper_noun:
+                strategy = "hybrid"
+                reason = "Query contains proper nouns indicating entity references; overridden to hybrid Graph RAG strategy."
         
     logger.info(f"Routed query '{query[:30]}...' to '{strategy}' strategy. Reason: {reason}")
     return {

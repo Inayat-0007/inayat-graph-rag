@@ -69,9 +69,9 @@ async def orchestrate_query(
             # Fall back to empty chunks
             chunks = []
             
-    # 3. Retrieve subgraph (Graph/Hybrid)
+    # 3. Retrieve subgraph (Graph/Hybrid/Vector)
     graph_data = {"nodes": [], "edges": []}
-    if strategy in ("graph", "hybrid"):
+    if strategy != "greeting":
         try:
             # Extract entities from question
             entities_res = await ollama_service.extract_entities(question, keep_alive=None)
@@ -80,6 +80,11 @@ async def orchestrate_query(
             if entity_names:
                 # Fetch 1-hop subgraph
                 graph_data = await neo4j_service.get_subgraph_for_entities(entity_names, hops=1)
+                
+                # Upgrade vector to hybrid if we found matching nodes in the database graph
+                if strategy == "vector" and graph_data.get("nodes"):
+                    strategy = "hybrid"
+                    logger.info("Upgraded strategy from vector to hybrid because matching graph entities were found.")
         except Exception as e:
             logger.warning(f"Graph retrieval failed (graceful fallback): {e}")
             graph_data = {"nodes": [], "edges": []}
@@ -215,8 +220,14 @@ async def orchestrate_query(
     # 8. Save to memory
     if session_id:
         try:
+            metadata_dict = {
+                "citations": citations,
+                "confidence": confidence,
+                "graph": graph_data
+            }
+            metadata_json = json.dumps(metadata_dict)
             await memory_service.add_message(session_id, "user", question)
-            await memory_service.add_message(session_id, "assistant", cleaned_response)
+            await memory_service.add_message(session_id, "assistant", cleaned_response, metadata=metadata_json)
         except Exception as e:
             logger.error(f"Failed to save messages to SQLite memory: {e}")
             

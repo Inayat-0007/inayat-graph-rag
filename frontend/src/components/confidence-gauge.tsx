@@ -57,11 +57,12 @@ export default function ConfidenceGauge({ value }: ConfidenceGaugeProps) {
           />
           {/* Progress circle */}
           <motion.circle
-            className={`transition-all duration-1000 ease-out ${getColor(animatedValue)}`}
+            className={getColor(animatedValue)}
             fill="transparent"
             strokeWidth={stroke}
             strokeDasharray={circumference + " " + circumference}
-            style={{ strokeDashoffset }}
+            animate={{ strokeDashoffset }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
             strokeLinecap="round"
             r={normalizedRadius}
             cx={radius + stroke}

@@ -24,7 +24,8 @@ async def get_history(session_id: str = Query(..., description="Session ID")):
             HistoryMessage(
                 role=msg["role"],
                 content=msg["content"],
-                timestamp=msg["timestamp"]
+                timestamp=msg["timestamp"],
+                metadata=msg["metadata"]
             )
             for msg in messages
         ]

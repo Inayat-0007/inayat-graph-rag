@@ -5,6 +5,7 @@ import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, FileText, MessageSquare, Search } from "lucide-react";
+import { fetchDocuments, DocumentInfo } from "@/lib/api";
 
 interface NavItem {
   label: string;
@@ -28,7 +29,22 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function CommandPalette() {
   const [open, setOpen] = useState(false);
+  const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const router = useRouter();
+
+  // Load documents when palette opens (M8)
+  useEffect(() => {
+    if (!open) return;
+    const loadDocs = async () => {
+      try {
+        const res = await fetchDocuments();
+        setDocuments(res.documents || []);
+      } catch (err) {
+        console.error("Failed to load documents for command palette:", err);
+      }
+    };
+    loadDocs();
+  }, [open]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -108,6 +124,31 @@ export default function CommandPalette() {
                     </Command.Item>
                   ))}
                 </Command.Group>
+
+                {/* Ingested Documents Group (M8) */}
+                {documents.length > 0 && (
+                  <Command.Group
+                    heading="Ingested Documents"
+                    className="text-xs text-muted-foreground px-2 py-1.5 border-t border-white/5 mt-2 pt-2"
+                  >
+                    {documents.map((doc) => (
+                      <Command.Item
+                        key={doc.doc_id}
+                        value={doc.filename}
+                        onSelect={() => handleSelect(`/documents?doc_id=${doc.doc_id}`)}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground cursor-pointer transition-colors hover:bg-white/10 data-[selected=true]:bg-white/10 aria-selected:bg-white/10"
+                      >
+                        <span className="text-muted-foreground">
+                          <FileText className="h-4 w-4" />
+                        </span>
+                        <div className="flex-1 min-w-0 flex items-center justify-between">
+                          <span className="truncate pr-2 font-medium">{doc.filename}</span>
+                          <span className="text-[10px] text-muted-foreground/60 shrink-0">{doc.chunk_count} Chunks</span>
+                        </div>
+                      </Command.Item>
+                    ))}
+                  </Command.Group>
+                )}
               </Command.List>
             </Command>
           </motion.div>

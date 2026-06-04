@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export interface Citation {
@@ -75,9 +77,18 @@ export default function CitationBadges({ citations }: CitationBadgesProps) {
                   &ldquo;{selectedCitation.text}&rdquo;
                 </p>
               </div>
-              <span className="text-[10px] text-muted-foreground text-right">
-                Chunk Index: {selectedCitation.chunk_index}
-              </span>
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-1">
+                <span>Chunk Index: {selectedCitation.chunk_index}</span>
+                <Link
+                  href={`/documents?doc_id=${selectedCitation.doc_id}&chunk_index=${selectedCitation.chunk_index}`}
+                  onClick={() => setSelectedCitation(null)}
+                >
+                  <Button variant="outline" size="sm" className="gap-1.5 text-[10px] h-8 border-primary/20 hover:bg-primary/10 hover:text-primary rounded-lg px-2.5">
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>View in Workspace</span>
+                  </Button>
+                </Link>
+              </div>
             </div>
           )}
         </DialogContent>

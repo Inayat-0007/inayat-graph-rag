@@ -42,6 +42,7 @@ export default function DocumentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"graph" | "chunks" | "entities">("graph");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [highlightedChunkIndex, setHighlightedChunkIndex] = useState<number | null>(null);
 
   const loadDocuments = async () => {
     setLoading(true);
@@ -73,6 +74,41 @@ export default function DocumentsPage() {
   useEffect(() => {
     loadDocuments();
   }, [refreshTrigger]);
+
+  // Read URL search params for deep linking (M11)
+  useEffect(() => {
+    if (documents.length === 0) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const docId = params.get("doc_id");
+    const chunkIdxStr = params.get("chunk_index");
+
+    if (docId) {
+      const doc = documents.find((d) => d.doc_id === docId);
+      if (doc) {
+        setSelectedDoc(doc);
+        if (chunkIdxStr !== null) {
+          setActiveTab("chunks");
+          const chunkIdx = parseInt(chunkIdxStr, 10);
+          setHighlightedChunkIndex(chunkIdx);
+          
+          // Wait for chunks to load and render, then scroll to view
+          setTimeout(() => {
+            const element = document.getElementById(`chunk-card-${chunkIdx}`);
+            if (element) {
+              element.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }, 800);
+
+          // Clear highlight after 5 seconds
+          const timer = setTimeout(() => {
+            setHighlightedChunkIndex(null);
+          }, 5000);
+          return () => clearTimeout(timer);
+        }
+      }
+    }
+  }, [documents]);
 
   // Load selected document details (chunks & graph)
   useEffect(() => {
@@ -413,15 +449,26 @@ export default function DocumentsPage() {
                               No text chunks retrieved.
                             </div>
                           ) : (
-                            chunks.map((c) => (
-                              <div key={c.chunk_id} className="bg-background/20 p-4 border border-muted-foreground/10 rounded-xl text-xs glass-card">
-                                <div className="flex justify-between items-center text-[10px] text-muted-foreground border-b border-muted-foreground/5 pb-2 mb-2">
-                                  <span className="font-semibold text-primary uppercase">Chunk {c.chunk_index + 1}</span>
-                                  <span>ID: {c.chunk_id.slice(-20)}</span>
-                                </div>
-                                <p className="leading-relaxed whitespace-pre-line text-slate-200 select-text font-sans">{c.text}</p>
-                              </div>
-                            ))
+                             chunks.map((c) => {
+                               const isHighlighted = highlightedChunkIndex === c.chunk_index;
+                               return (
+                                 <div
+                                   key={c.chunk_id}
+                                   id={`chunk-card-${c.chunk_index}`}
+                                   className={`bg-background/20 p-4 border rounded-xl text-xs glass-card transition-all duration-500 ${
+                                     isHighlighted
+                                       ? "border-primary shadow-[0_0_15px_rgba(var(--primary-color),0.2)] scale-[1.01]"
+                                       : "border-muted-foreground/10"
+                                   }`}
+                                 >
+                                   <div className="flex justify-between items-center text-[10px] text-muted-foreground border-b border-muted-foreground/5 pb-2 mb-2">
+                                     <span className="font-semibold text-primary uppercase">Chunk {c.chunk_index + 1}</span>
+                                     <span>ID: {c.chunk_id.slice(-20)}</span>
+                                   </div>
+                                   <p className="leading-relaxed whitespace-pre-line text-slate-200 select-text font-sans">{c.text}</p>
+                                 </div>
+                               );
+                             })
                           )}
                         </motion.div>
                       )}

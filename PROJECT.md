@@ -43,13 +43,13 @@ User asks question
 
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | Docker Infrastructure | docker-compose.yml, scripts/, SETUP.md | none | PLANNED |
-| 2 | Backend Core & Ingestion | FastAPI app structure, document upload pipeline, health endpoint | none | PLANNED |
-| 3 | Backend Query Pipeline | Query endpoint with hybrid search, rerank, graph context, SSE streaming, conversation memory, agentic router | M2 | PLANNED |
-| 4 | Frontend Foundation | Next.js 14 project setup, Tailwind/Shadcn, layout, Three.js neural mesh, health dashboard, command palette, page transitions | none | PLANNED |
-| 5 | Frontend Features | Document upload page, Ask page with streaming, confidence gauge, citations, knowledge graph viz, conversation sidebar, mobile responsive | M4 | PLANNED |
-| 6 | Integration & Hardening | Error handling, health checks, request limits, graceful fallbacks, TESTING.md, end-to-end testing | M1, M2, M3, M4, M5 | PLANNED |
-| 7 | Documentation & GitHub | README.md, final commits, push to GitHub | M6 | PLANNED |
+| 1 | Docker Infrastructure | docker-compose.yml, scripts/, SETUP.md | none | COMPLETE |
+| 2 | Backend Core & Ingestion | FastAPI app structure, document upload pipeline, health endpoint | none | COMPLETE |
+| 3 | Backend Query Pipeline | Query endpoint with hybrid search, rerank, graph context, SSE streaming, conversation memory, agentic router | M2 | COMPLETE |
+| 4 | Frontend Foundation | Next.js 14 project setup, Tailwind/Shadcn, layout, Three.js neural mesh, health dashboard, command palette, page transitions | none | COMPLETE |
+| 5 | Frontend Features | Document upload page, Ask page with streaming, confidence gauge, citations, knowledge graph viz, conversation sidebar, mobile responsive | M4 | COMPLETE |
+| 6 | Integration & Hardening | Error handling, health checks, request limits, graceful fallbacks, TESTING.md, end-to-end testing | M1, M2, M3, M4, M5 | COMPLETE |
+| 7 | Documentation & GitHub | README.md, final commits, push to GitHub | M6 | COMPLETE |
 
 ## Interface Contracts
 

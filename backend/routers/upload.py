@@ -68,7 +68,7 @@ async def upload_document(file: UploadFile = File(...)):
         if not text or not text.strip():
             raise HTTPException(
                 status_code=400,
-                detail="No text could be extracted from the file",
+                detail="No text could be extracted from the file. Please ensure the PDF is text-based and not scanned (scanned image PDFs require OCR which is not supported).",
             )
 
         # 6. Chunk text (512 tokens, 64 overlap)

@@ -60,6 +60,7 @@ class HistoryMessage(BaseModel):
     role: str
     content: str
     timestamp: str
+    metadata: Optional[str] = None
 
 
 class HistoryResponse(BaseModel):

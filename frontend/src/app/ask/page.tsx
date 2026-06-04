@@ -81,6 +81,19 @@ export default function AskPage() {
         content: m.content,
       }));
       setMessages(historyMsgs);
+
+      // Restore metadata (confidence, citations, graph) from the last assistant message
+      const lastAssistantMsg = [...data.messages].reverse().find(m => m.role === "assistant");
+      if (lastAssistantMsg && lastAssistantMsg.metadata) {
+        try {
+          const meta = JSON.parse(lastAssistantMsg.metadata);
+          if (meta.confidence !== undefined) setConfidence(meta.confidence);
+          if (meta.citations !== undefined) setCitations(meta.citations);
+          if (meta.graph !== undefined) setGraphData(meta.graph);
+        } catch (err) {
+          console.error("Failed to parse message metadata:", err);
+        }
+      }
     } catch (e) {
       console.error("Failed to load session history:", e);
     } finally {
@@ -125,6 +138,11 @@ export default function AskPage() {
     setInputQuestion("");
     setIsLoading(true);
     setStreamingMessage("");
+    
+    // Reset right-hand panel metrics for new query
+    setConfidence(0);
+    setCitations([]);
+    setGraphData({ nodes: [], edges: [] });
     
     // Add user message immediately
     setMessages((prev) => [...prev, { role: "user", content: query }]);

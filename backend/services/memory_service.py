@@ -38,10 +38,18 @@ async def init_db() -> None:
                 session_id TEXT NOT NULL,
                 role TEXT NOT NULL,
                 content TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                metadata TEXT
             )
             """
         )
+        # Try to add metadata column if it doesn't exist (migration for existing db)
+        try:
+            await db.execute("ALTER TABLE messages ADD COLUMN metadata TEXT")
+            await db.commit()
+        except Exception:
+            pass
+
         await db.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_messages_session_id
@@ -59,7 +67,9 @@ async def init_db() -> None:
     logger.info(f"Memory service: SQLite database initialized at {DB_PATH}")
 
 
-async def add_message(session_id: str, role: str, content: str) -> None:
+async def add_message(
+    session_id: str, role: str, content: str, metadata: Optional[str] = None
+) -> None:
     """
     Insert a conversation message into the database.
 
@@ -67,14 +77,15 @@ async def add_message(session_id: str, role: str, content: str) -> None:
         session_id: Unique session identifier
         role: Message role ('user' or 'assistant')
         content: Message content text
+        metadata: Optional metadata string (JSON citations/confidence)
     """
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """
-            INSERT INTO messages (session_id, role, content, timestamp)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO messages (session_id, role, content, timestamp, metadata)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (session_id, role, content, datetime.utcnow().isoformat()),
+            (session_id, role, content, datetime.utcnow().isoformat(), metadata),
         )
         await db.commit()
 
@@ -99,7 +110,7 @@ async def get_history(
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             """
-            SELECT role, content, timestamp
+            SELECT role, content, timestamp, metadata
             FROM messages
             WHERE session_id = ?
             ORDER BY timestamp DESC, id DESC
@@ -116,6 +127,7 @@ async def get_history(
             "role": row["role"],
             "content": row["content"],
             "timestamp": row["timestamp"],
+            "metadata": row["metadata"],
         })
 
     return messages

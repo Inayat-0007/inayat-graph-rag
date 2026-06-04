@@ -52,6 +52,7 @@ export interface HistoryMessage {
   role: string;
   content: string;
   timestamp: string;
+  metadata?: string;
 }
 
 export interface HistoryResponse {
@@ -118,8 +119,18 @@ export async function uploadDocument(file: File): Promise<UploadResponse> {
     body: formData,
   });
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Upload failed: ${res.status} ${res.statusText} — ${errorBody}`);
+    let errorDetail = "";
+    try {
+      const errorJson = await res.json();
+      errorDetail = errorJson.detail || JSON.stringify(errorJson);
+    } catch {
+      try {
+        errorDetail = await res.text();
+      } catch {
+        errorDetail = res.statusText;
+      }
+    }
+    throw new Error(`Upload failed (${res.status}): ${errorDetail}`);
   }
   return res.json();
 }
@@ -140,8 +151,18 @@ export async function queryStream(
     body: JSON.stringify({ question, session_id: sessionId }),
   });
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Query failed: ${res.status} ${res.statusText} — ${errorBody}`);
+    let errorDetail = "";
+    try {
+      const errorJson = await res.json();
+      errorDetail = errorJson.detail || JSON.stringify(errorJson);
+    } catch {
+      try {
+        errorDetail = await res.text();
+      } catch {
+        errorDetail = res.statusText;
+      }
+    }
+    throw new Error(`Query failed (${res.status}): ${errorDetail}`);
   }
   if (!res.body) {
     throw new Error("No response body for streaming");

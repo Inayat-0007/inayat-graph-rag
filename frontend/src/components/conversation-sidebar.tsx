@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { fetchSessions, deleteSession } from "@/lib/api";
 
 interface Session {
   id: string;
@@ -25,58 +26,81 @@ export default function ConversationSidebar({
   const [sessions, setSessions] = useState<Session[]>([]);
   const [collapsed, setCollapsed] = useState(false);
 
-  // Load sessions from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem("inayat_chat_sessions");
-    if (saved) {
-      try {
-        setSessions(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse sessions", e);
+  const loadSessions = async () => {
+    try {
+      const data = await fetchSessions();
+      if (data.sessions && data.sessions.length > 0) {
+        const mapped = data.sessions.map((s) => ({
+          id: s.session_id,
+          name: s.first_question || "New Conversation",
+          timestamp: new Date(s.last_message_at).getTime(),
+        }));
+        setSessions(mapped);
+      } else {
+        // Fallback to localStorage or single session
+        const saved = localStorage.getItem("inayat_chat_sessions");
+        if (saved) {
+          setSessions(JSON.parse(saved));
+        } else {
+          const initial: Session = {
+            id: currentSessionId,
+            name: "New Conversation",
+            timestamp: Date.now(),
+          };
+          setSessions([initial]);
+          localStorage.setItem("inayat_chat_sessions", JSON.stringify([initial]));
+        }
       }
-    } else {
-      // Create initial session if none exist
-      const initial: Session = {
-        id: currentSessionId,
-        name: "New Conversation",
-        timestamp: Date.now(),
-      };
-      setSessions([initial]);
-      localStorage.setItem("inayat_chat_sessions", JSON.stringify([initial]));
+    } catch (e) {
+      console.error("Failed to load sessions from backend:", e);
+      const saved = localStorage.getItem("inayat_chat_sessions");
+      if (saved) {
+        try {
+          setSessions(JSON.parse(saved));
+        } catch {
+          // ignore
+        }
+      }
     }
+  };
+
+  // Load sessions on mount and when currentSessionId changes
+  useEffect(() => {
+    loadSessions();
   }, [currentSessionId]);
 
-  // Sync sessions when a new session is created outside
-  const addSession = (id: string, name: string = "New Conversation") => {
-    const exists = sessions.some((s) => s.id === id);
-    if (!exists) {
-      const updated = [{ id, name, timestamp: Date.now() }, ...sessions];
-      setSessions(updated);
-      localStorage.setItem("inayat_chat_sessions", JSON.stringify(updated));
-    }
-  };
-
-  const deleteSession = (id: string, e: React.MouseEvent) => {
+  const deleteSessionHandler = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    // Don't delete the last remaining session
-    if (sessions.length <= 1) {
-      const newId = `session_${Date.now()}`;
-      const fresh = [{ id: newId, name: "New Conversation", timestamp: Date.now() }];
-      setSessions(fresh);
-      localStorage.setItem("inayat_chat_sessions", JSON.stringify(fresh));
-      onSessionSelect(newId);
-      return;
-    }
+    try {
+      await deleteSession(id);
+      
+      // Sync localStorage
+      const saved = localStorage.getItem("inayat_chat_sessions");
+      if (saved) {
+        try {
+          const list = JSON.parse(saved);
+          const updated = list.filter((s: any) => s.id !== id);
+          localStorage.setItem("inayat_chat_sessions", JSON.stringify(updated));
+        } catch (err) {
+          console.error(err);
+        }
+      }
 
-    const updated = sessions.filter((s) => s.id !== id);
-    setSessions(updated);
-    localStorage.setItem("inayat_chat_sessions", JSON.stringify(updated));
-    
-    if (currentSessionId === id && updated.length > 0) {
-      onSessionSelect(updated[0].id);
+      if (currentSessionId === id) {
+        const remaining = sessions.filter((s) => s.id !== id);
+        if (remaining.length > 0) {
+          onSessionSelect(remaining[0].id);
+        } else {
+          onNewSession();
+        }
+      } else {
+        loadSessions();
+      }
+    } catch (err) {
+      console.error("Failed to delete session:", err);
     }
   };
+
 
   const renameSession = (id: string, name: string) => {
     const updated = sessions.map((s) =>
@@ -142,7 +166,7 @@ export default function ConversationSidebar({
                     {session.name}
                   </span>
                   <button
-                    onClick={(e) => deleteSession(session.id, e)}
+                    onClick={(e) => deleteSessionHandler(session.id, e)}
                     className="opacity-0 group-hover:opacity-100 hover:text-rose-500 transition-opacity p-0.5"
                     title="Delete Chat"
                   >

@@ -2,6 +2,10 @@
 I.N.A.Y.A.T. Backend Configuration Constants
 """
 import os
+from dotenv import load_dotenv
+
+# Load env variables from .env file
+load_dotenv()
 
 # Ollama settings
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

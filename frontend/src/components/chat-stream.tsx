@@ -4,6 +4,9 @@ import React, { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { User, Cpu, ChevronDown, ChevronRight, BrainCircuit } from "lucide-react";
 
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 interface Message {
   role: string;
   content: string;
@@ -15,12 +18,45 @@ interface ChatStreamProps {
   isLoading?: boolean;
 }
 
+const mdComponents: Record<string, React.ComponentType<any>> = {
+  h1: ({ children }) => <h1 className="text-base font-bold my-2 text-foreground">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-sm font-bold my-2 text-foreground">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-xs font-bold my-1 text-foreground">{children}</h3>,
+  p: ({ children }) => <p className="my-1.5 leading-relaxed">{children}</p>,
+  ul: ({ children }) => <ul className="list-disc pl-5 my-2 space-y-1">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>,
+  li: ({ children }) => <li className="text-sm">{children}</li>,
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-3 border border-muted-foreground/15 rounded-lg">
+      <table className="w-full text-xs text-left border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-muted/50 border-b border-muted-foreground/15">{children}</thead>,
+  th: ({ children }) => <th className="px-3 py-2 font-semibold">{children}</th>,
+  td: ({ children }) => <td className="px-3 py-2 border-b border-muted-foreground/5">{children}</td>,
+  code: ({ node, inline, className, children, ...props }) => {
+    return !inline ? (
+      <pre className="p-3 bg-muted/40 rounded-xl border border-muted-foreground/10 my-3 overflow-x-auto text-[11px] font-mono leading-normal select-text">
+        <code className={className} {...props}>{children}</code>
+      </pre>
+    ) : (
+      <code className="px-1.5 py-0.5 bg-muted/80 rounded text-xs font-mono text-neural-cyan select-all" {...props}>{children}</code>
+    );
+  }
+};
+
 function MessageContent({ content }: { content: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const thinkStart = content.indexOf("<think>");
   if (thinkStart === -1) {
-    return <p className="whitespace-pre-line leading-relaxed">{content}</p>;
+    return (
+      <div className="markdown-content text-slate-100 max-w-none text-[13px] leading-relaxed">
+        <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    );
   }
 
   const thinkEnd = content.indexOf("</think>", thinkStart);
@@ -61,7 +97,11 @@ function MessageContent({ content }: { content: string }) {
       
       {/* Actual text response */}
       {response && (
-        <p className="whitespace-pre-line leading-relaxed">{response}</p>
+        <div className="markdown-content text-slate-100 max-w-none text-[13px] leading-relaxed">
+          <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]}>
+            {response}
+          </ReactMarkdown>
+        </div>
       )}
     </div>
   );

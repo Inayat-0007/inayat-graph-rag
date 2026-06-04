@@ -123,18 +123,20 @@ async def get_history(
 
 async def get_sessions() -> List[Dict[str, Any]]:
     """
-    List all conversation sessions with their latest message timestamp.
+    List all conversation sessions with their latest message timestamp and their first user question.
 
     Returns:
-        List of session dicts with 'session_id' and 'last_message_at',
+        List of session dicts with 'session_id', 'last_message_at', and 'first_question',
         ordered by most recent activity first.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             """
-            SELECT session_id, MAX(timestamp) AS last_message_at
-            FROM messages
+            SELECT session_id, 
+                   MAX(timestamp) AS last_message_at,
+                   (SELECT content FROM messages WHERE session_id = m.session_id AND role = 'user' ORDER BY timestamp ASC LIMIT 1) AS first_question
+            FROM messages m
             GROUP BY session_id
             ORDER BY last_message_at DESC
             """
@@ -146,6 +148,24 @@ async def get_sessions() -> List[Dict[str, Any]]:
         sessions.append({
             "session_id": row["session_id"],
             "last_message_at": row["last_message_at"],
+            "first_question": row["first_question"] or "New Conversation",
         })
 
     return sessions
+
+
+async def delete_session(session_id: str) -> None:
+    """
+    Delete all messages for a given session from the SQLite database.
+
+    Args:
+        session_id: Unique session identifier
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM messages WHERE session_id = ?",
+            (session_id,),
+        )
+        await db.commit()
+    logger.info(f"Deleted conversation session from SQLite: {session_id}")
+

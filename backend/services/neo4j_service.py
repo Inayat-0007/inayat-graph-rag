@@ -441,6 +441,32 @@ async def health_check() -> bool:
         return False
 
 
+async def delete_document(doc_id: str) -> None:
+    """
+    Delete a Document node and all its unique entities and relationships from Neo4j.
+    Keeps entities that are still referenced by other documents.
+
+    Args:
+        doc_id: Unique document identifier
+    """
+    driver = await get_driver()
+    async with driver.session() as session:
+        # Delete Document node and capture its linked entities
+        # Clean up entities that have no remaining incoming CONTAINS relationships from other documents
+        await session.run(
+            """
+            MATCH (d:Document {doc_id: $doc_id})
+            OPTIONAL MATCH (d)-[:CONTAINS]->(e:Entity)
+            DETACH DELETE d
+            WITH e
+            WHERE e IS NOT NULL AND NOT ()-[:CONTAINS]->(e)
+            DETACH DELETE e
+            """,
+            doc_id=doc_id,
+        )
+    logger.info(f"Deleted Document node and orphan entities for doc_id={doc_id} from Neo4j")
+
+
 async def close() -> None:
     """Close the Neo4j driver."""
     global _driver
@@ -448,3 +474,4 @@ async def close() -> None:
         await _driver.close()
         _driver = None
         logger.info("Neo4j driver closed")
+

@@ -210,3 +210,75 @@ def health_check() -> bool:
     except Exception as e:
         logger.error(f"Qdrant health check failed: {e}")
         return False
+
+
+def delete_document(doc_id: str) -> None:
+    """
+    Delete all vector points associated with a document from Qdrant.
+
+    Args:
+        doc_id: Unique document identifier
+    """
+    client = get_client()
+    try:
+        client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=qmodels.Filter(
+                must=[
+                    qmodels.FieldCondition(
+                        key="doc_id",
+                        match=qmodels.MatchValue(value=doc_id),
+                    )
+                ]
+            ),
+        )
+        logger.info(f"Deleted all vector points for doc_id={doc_id} from Qdrant")
+    except Exception as e:
+        logger.error(f"Failed to delete points for doc_id={doc_id}: {e}")
+        raise
+
+
+def get_document_chunks(doc_id: str) -> List[Dict[str, Any]]:
+    """
+    Retrieve all chunk texts associated with a document from Qdrant,
+    sorted chronologically by chunk_index.
+
+    Args:
+        doc_id: Unique document identifier
+
+    Returns:
+        List of dictionaries with 'chunk_id', 'chunk_index', and 'text' keys
+    """
+    client = get_client()
+    try:
+        result, _ = client.scroll(
+            collection_name=COLLECTION_NAME,
+            scroll_filter=qmodels.Filter(
+                must=[
+                    qmodels.FieldCondition(
+                        key="doc_id",
+                        match=qmodels.MatchValue(value=doc_id),
+                    )
+                ]
+            ),
+            limit=1000,  # Cap at 1000 chunks max per document in dev env
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        chunks = []
+        for point in result:
+            payload = point.payload or {}
+            chunks.append({
+                "chunk_id": payload.get("chunk_id", ""),
+                "chunk_index": int(payload.get("chunk_index", 0)),
+                "text": payload.get("text", ""),
+            })
+
+        # Sort chunks by chunk index
+        chunks.sort(key=lambda x: x["chunk_index"])
+        return chunks
+    except Exception as e:
+        logger.error(f"Failed to scroll document chunks for doc_id={doc_id}: {e}")
+        return []
+

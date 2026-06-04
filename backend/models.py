@@ -80,3 +80,27 @@ class HealthResponse(BaseModel):
     """Response model for health check endpoint."""
     status: str
     services: ServiceStatus
+
+
+class SessionInfo(BaseModel):
+    """Information about a conversation session."""
+    session_id: str
+    last_message_at: str
+    first_question: str
+
+
+class SessionsResponse(BaseModel):
+    """Response model for session listing."""
+    sessions: List[SessionInfo]
+
+
+class DocumentChunkInfo(BaseModel):
+    """Information about a text chunk from a document."""
+    chunk_id: str
+    chunk_index: int
+    text: str
+
+
+class DocumentChunksResponse(BaseModel):
+    """Response model for document chunks preview."""
+    chunks: List[DocumentChunkInfo]

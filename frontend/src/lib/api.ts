@@ -3,11 +3,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export interface HealthResponse {
   status: string;
   services: {
-    qdrant: string;
-    neo4j: string;
-    ollama: string;
-    embed_model: string;
-    gen_model: string;
+    qdrant: boolean;
+    neo4j: boolean;
+    ollama: boolean;
+    embed_model: boolean;
+    gen_model: boolean;
   };
 }
 
@@ -56,6 +56,26 @@ export interface HistoryMessage {
 
 export interface HistoryResponse {
   messages: HistoryMessage[];
+}
+
+export interface SessionInfo {
+  session_id: string;
+  last_message_at: string;
+  first_question: string;
+}
+
+export interface SessionsResponse {
+  sessions: SessionInfo[];
+}
+
+export interface DocumentChunkInfo {
+  chunk_id: string;
+  chunk_index: number;
+  text: string;
+}
+
+export interface DocumentChunksResponse {
+  chunks: DocumentChunkInfo[];
 }
 
 /**
@@ -220,3 +240,66 @@ export async function fetchHistory(sessionId: string): Promise<HistoryResponse> 
   }
   return res.json();
 }
+
+/**
+ * Fetch list of all active conversation sessions.
+ */
+export async function fetchSessions(): Promise<SessionsResponse> {
+  const res = await fetch(`${API_BASE}/api/history/sessions`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`Fetch sessions failed: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+/**
+ * Delete a conversation session.
+ */
+export async function deleteSession(sessionId: string): Promise<{ status: string; session_id: string }> {
+  const res = await fetch(`${API_BASE}/api/history/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`Delete session failed: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+/**
+ * Fetch all text chunks for a document.
+ */
+export async function fetchDocumentChunks(docId: string): Promise<DocumentChunksResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/documents/${encodeURIComponent(docId)}/chunks`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`Fetch chunks failed: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+/**
+ * Delete a document from vector and graph databases.
+ */
+export async function deleteDocument(docId: string): Promise<{ status: string; doc_id: string }> {
+  const res = await fetch(
+    `${API_BASE}/api/documents/${encodeURIComponent(docId)}`,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`Delete document failed: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+

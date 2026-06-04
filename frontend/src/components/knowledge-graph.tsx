@@ -69,21 +69,23 @@ export default function KnowledgeGraph({ nodes, edges, height = 300 }: Knowledge
     return "#64748b"; // Slate
   };
 
-  // Format data for react-force-graph
-  const graphData = {
-    nodes: nodes.map((node) => ({
-      id: node.id,
-      name: node.label,
-      type: node.type,
-      color: getNodeColor(node.type),
-      val: node.type.toUpperCase() === "DOCUMENT" ? 7 : 4,
-    })),
-    links: edges.map((edge) => ({
-      source: edge.source,
-      target: edge.target,
-      label: edge.relation,
-    })),
-  };
+  // Format data for react-force-graph and memoize to prevent physics simulation jumps on re-render
+  const graphData = React.useMemo(() => {
+    return {
+      nodes: nodes.map((node) => ({
+        id: node.id,
+        name: node.label,
+        type: node.type,
+        color: getNodeColor(node.type),
+        val: node.type.toUpperCase() === "DOCUMENT" ? 7 : 4,
+      })),
+      links: edges.map((edge) => ({
+        source: edge.source,
+        target: edge.target,
+        label: edge.relation,
+      })),
+    };
+  }, [nodes, edges]);
 
   const hasData = nodes.length > 0;
 

@@ -124,7 +124,7 @@ export default function HealthDashboard() {
             health?.services[
               service.key as keyof HealthResponse["services"]
             ];
-          const isHealthy = status === true || status === "healthy";
+          const isHealthy = status === true;
           const statusText = isHealthy ? "online" : (status === false ? "offline" : "unknown");
 
           return (

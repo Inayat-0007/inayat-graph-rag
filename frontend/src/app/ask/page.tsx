@@ -12,7 +12,7 @@ import ChatStream from "@/components/chat-stream";
 import ConfidenceGauge from "@/components/confidence-gauge";
 import CitationBadges, { Citation } from "@/components/citation-badges";
 import KnowledgeGraph from "@/components/knowledge-graph";
-import { queryStream, parseSSEStream, fetchHistory } from "@/lib/api";
+import { queryStream, parseSSEStream, fetchHistory, fetchSessions } from "@/lib/api";
 
 interface Message {
   role: string;
@@ -34,11 +34,34 @@ export default function AskPage() {
     edges: [],
   });
 
-  // Generate unique session ID on initial load
+  // Load session from sessionStorage or create a new one, and sync active session from backend
   useEffect(() => {
-    const defaultSession = `session_${Date.now()}`;
-    setSessionId(defaultSession);
-    loadHistory(defaultSession);
+    const initializeSession = async () => {
+      try {
+        const data = await fetchSessions();
+        if (data.sessions && data.sessions.length > 0) {
+          const savedSessionId = sessionStorage.getItem("inayat_current_session_id");
+          const sessionExists = data.sessions.some(s => s.session_id === savedSessionId);
+          const activeSessionId = sessionExists && savedSessionId ? savedSessionId : data.sessions[0].session_id;
+          setSessionId(activeSessionId);
+          sessionStorage.setItem("inayat_current_session_id", activeSessionId);
+          loadHistory(activeSessionId);
+        } else {
+          // Create new session
+          const newSessionId = `session_${Date.now()}`;
+          setSessionId(newSessionId);
+          sessionStorage.setItem("inayat_current_session_id", newSessionId);
+          loadHistory(newSessionId);
+        }
+      } catch (e) {
+        console.error("Failed to fetch sessions from backend:", e);
+        const savedSessionId = sessionStorage.getItem("inayat_current_session_id") || `session_${Date.now()}`;
+        setSessionId(savedSessionId);
+        sessionStorage.setItem("inayat_current_session_id", savedSessionId);
+        loadHistory(savedSessionId);
+      }
+    };
+    initializeSession();
   }, []);
 
   const loadHistory = async (sessId: string) => {
@@ -67,26 +90,28 @@ export default function AskPage() {
 
   const handleSessionSelect = (sessId: string) => {
     setSessionId(sessId);
+    sessionStorage.setItem("inayat_current_session_id", sessId);
     loadHistory(sessId);
   };
 
   const handleNewSession = () => {
     const newSessId = `session_${Date.now()}`;
     setSessionId(newSessId);
+    sessionStorage.setItem("inayat_current_session_id", newSessId);
     
     // Add to localStorage list
     const saved = localStorage.getItem("inayat_chat_sessions");
+    const initialSession = { id: newSessId, name: "New Conversation", timestamp: Date.now() };
     if (saved) {
       try {
         const list = JSON.parse(saved);
-        const updated = [
-          { id: newSessId, name: "New Conversation", timestamp: Date.now() },
-          ...list,
-        ];
+        const updated = [initialSession, ...list];
         localStorage.setItem("inayat_chat_sessions", JSON.stringify(updated));
       } catch (e) {
         console.error(e);
       }
+    } else {
+      localStorage.setItem("inayat_chat_sessions", JSON.stringify([initialSession]));
     }
     
     loadHistory(newSessId);

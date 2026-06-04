@@ -28,6 +28,15 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
   };
 
   const processFile = async (file: File) => {
+    // Client-side file extension check (P3 | H5)
+    const allowedExtensions = [".pdf", ".docx", ".txt"];
+    const fileExtension = "." + file.name.split(".").pop()?.toLowerCase();
+    if (!allowedExtensions.includes(fileExtension)) {
+      setStatus("error");
+      setErrorMsg(`Unsupported file type "${fileExtension}". Only PDF, DOCX, and TXT files are accepted.`);
+      return;
+    }
+
     setStatus("uploading");
     setErrorMsg("");
     try {

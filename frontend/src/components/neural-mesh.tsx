@@ -57,6 +57,14 @@ function ParticleField({ count }: ParticleFieldProps) {
     return geom;
   }, [linePositions, lineColors]);
 
+  // Clean up WebGL geometry resources on unmount
+  useEffect(() => {
+    return () => {
+      lineGeometry.dispose();
+    };
+  }, [lineGeometry]);
+
+
   // Cap at ~45fps by skipping frames
   useFrame((_, delta) => {
     frameCount.current++;

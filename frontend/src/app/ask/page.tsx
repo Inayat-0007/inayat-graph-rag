@@ -129,7 +129,13 @@ export default function AskPage() {
 
       for await (const chunk of generator) {
         if (chunk.event === "token") {
-          accumulated += chunk.data;
+          let tokenText = chunk.data;
+          try {
+            tokenText = JSON.parse(chunk.data);
+          } catch (e) {
+            // Not a JSON string (e.g. legacy backend output), keep raw
+          }
+          accumulated += tokenText;
           setStreamingMessage(accumulated);
         } else if (chunk.event === "citations") {
           try {

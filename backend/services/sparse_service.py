@@ -13,9 +13,12 @@ This is a lightweight, dependency-free implementation that:
 The sparse vectors complement the dense 768-dim embeddings from
 nomic-embed-text:v1.5 for hybrid search with RRF fusion.
 """
+import os
+import json
 import math
 import logging
 import re
+import threading
 from typing import List, Dict, Any
 from collections import Counter
 
@@ -46,6 +49,57 @@ STOP_WORDS = {
 # Global vocabulary mapping term -> integer index
 _vocab: Dict[str, int] = {}
 _next_id: int = 0
+_df: Dict[str, int] = {}
+_num_docs: int = 0
+_total_tokens: int = 0
+_avg_dl: float = 0.0
+
+STATS_PATH = "data/bm25_stats.json"
+_stats_lock = threading.Lock()
+
+
+def _load_stats():
+    global _vocab, _next_id, _df, _num_docs, _total_tokens, _avg_dl
+    with _stats_lock:
+        if os.path.exists(STATS_PATH):
+            try:
+                with open(STATS_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    _vocab = data.get("vocab", {})
+                    _next_id = len(_vocab)
+                    _df = data.get("df", {})
+                    _num_docs = data.get("num_docs", 0)
+                    _total_tokens = data.get("total_tokens", 0)
+                    _avg_dl = data.get("avg_dl", 0.0)
+                logger.info(f"Loaded BM25 stats: {len(_vocab)} terms, {_num_docs} docs")
+            except Exception as e:
+                logger.error(f"Failed to load BM25 stats: {e}")
+        else:
+            _vocab = {}
+            _next_id = 0
+            _df = {}
+            _num_docs = 0
+            _total_tokens = 0
+            _avg_dl = 0.0
+
+
+def _save_stats():
+    with _stats_lock:
+        try:
+            os.makedirs(os.path.dirname(STATS_PATH), exist_ok=True)
+            with open(STATS_PATH, "w", encoding="utf-8") as f:
+                json.dump({
+                    "vocab": _vocab,
+                    "df": _df,
+                    "num_docs": _num_docs,
+                    "total_tokens": _total_tokens,
+                    "avg_dl": _avg_dl
+                }, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save BM25 stats: {e}")
+
+# Initial load
+_load_stats()
 
 
 def _tokenize(text: str) -> List[str]:
@@ -70,7 +124,7 @@ def _get_term_id(term: str) -> int:
 
 def compute_sparse_vectors(texts: List[str]) -> List[Dict[str, Any]]:
     """
-    Compute BM25-based sparse vectors for a list of text chunks.
+    Compute BM25-based sparse vectors for a list of text chunks using global corpus statistics.
 
     Each sparse vector contains:
       - indices: List[int] — term IDs (vocabulary indices)
@@ -84,23 +138,27 @@ def compute_sparse_vectors(texts: List[str]) -> List[Dict[str, Any]]:
     Returns:
         List of dicts, each with 'indices' (List[int]) and 'values' (List[float])
     """
+    global _num_docs, _total_tokens, _avg_dl
     if not texts:
         return []
 
     # Tokenize all documents
     doc_tokens = [_tokenize(text) for text in texts]
 
-    # Compute document frequencies (DF) for IDF calculation
-    num_docs = len(doc_tokens)
-    df: Counter = Counter()
+    # Update global counts (DF and total docs/tokens)
     for tokens in doc_tokens:
+        _num_docs += 1
+        _total_tokens += len(tokens)
         unique_terms = set(tokens)
         for term in unique_terms:
-            df[term] += 1
+            _get_term_id(term)  # Assign ID if not exists
+            _df[term] = _df.get(term, 0) + 1
 
-    # Compute average document length for BM25
-    total_tokens = sum(len(tokens) for tokens in doc_tokens)
-    avg_dl = total_tokens / max(num_docs, 1)
+    # Recalculate average document length
+    _avg_dl = _total_tokens / max(_num_docs, 1)
+
+    # Save stats to disk
+    _save_stats()
 
     # Compute BM25 sparse vector for each document
     sparse_vectors = []
@@ -117,17 +175,18 @@ def compute_sparse_vectors(texts: List[str]) -> List[Dict[str, Any]]:
         values = []
 
         for term, freq in tf.items():
-            term_id = _get_term_id(term)
+            term_id = _vocab[term]  # Must exist because we just added it above
 
-            # IDF: log((N - df + 0.5) / (df + 0.5) + 1)
-            doc_freq = df.get(term, 0)
+            # IDF using global N and global DF
+            doc_freq = _df.get(term, 0)
             idf = math.log(
-                (num_docs - doc_freq + 0.5) / (doc_freq + 0.5) + 1.0
+                (_num_docs - doc_freq + 0.5) / (doc_freq + 0.5) + 1.0
             )
+            idf = max(idf, 0.0001)
 
-            # BM25 TF component: (freq * (k1 + 1)) / (freq + k1 * (1 - b + b * dl/avgdl))
+            # BM25 TF component using global average length
             tf_component = (freq * (BM25_K1 + 1.0)) / (
-                freq + BM25_K1 * (1.0 - BM25_B + BM25_B * doc_len / max(avg_dl, 1.0))
+                freq + BM25_K1 * (1.0 - BM25_B + BM25_B * doc_len / max(_avg_dl, 1.0))
             )
 
             bm25_score = idf * tf_component
@@ -138,7 +197,7 @@ def compute_sparse_vectors(texts: List[str]) -> List[Dict[str, Any]]:
 
         sparse_vectors.append({"indices": indices, "values": values})
 
-    logger.info(f"Computed {len(sparse_vectors)} BM25 sparse vectors")
+    logger.info(f"Computed {len(sparse_vectors)} global BM25 sparse vectors")
     return sparse_vectors
 
 
@@ -148,6 +207,7 @@ def compute_query_sparse_vector(query: str) -> Dict[str, Any]:
 
     Uses the same vocabulary as the document vectors but with
     simpler TF weighting (since queries are short).
+    Only returns values for terms present in the global vocabulary.
 
     Args:
         query: Query text string
@@ -164,9 +224,10 @@ def compute_query_sparse_vector(query: str) -> Dict[str, Any]:
     values = []
 
     for term, freq in tf.items():
-        term_id = _get_term_id(term)
-        # For queries, use simple term frequency as weight
-        indices.append(term_id)
-        values.append(float(freq))
+        if term in _vocab:
+            term_id = _vocab[term]
+            # For queries, use simple term frequency as weight
+            indices.append(term_id)
+            values.append(float(freq))
 
     return {"indices": indices, "values": values}

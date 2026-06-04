@@ -12,6 +12,7 @@ Orchestrates the entire query pipeline:
 import re
 import json
 import logging
+import asyncio
 from typing import AsyncGenerator, List, Dict, Any
 
 from backend.services import (
@@ -52,7 +53,7 @@ async def orchestrate_query(
             dense_vector = dense_vectors[0]
             
             # Generate sparse vectors
-            sparse_vector = sparse_service.compute_sparse_vectors([question])[0]
+            sparse_vector = sparse_service.compute_query_sparse_vector(question)
             
             # Search
             search_results = qdrant_service.hybrid_search(
@@ -73,7 +74,7 @@ async def orchestrate_query(
     if strategy in ("graph", "hybrid"):
         try:
             # Extract entities from question
-            entities_res = await ollama_service.extract_entities(question)
+            entities_res = await ollama_service.extract_entities(question, keep_alive=None)
             entity_names = [e["name"] for e in entities_res.get("entities", []) if "name" in e]
             
             if entity_names:
@@ -95,66 +96,87 @@ async def orchestrate_query(
             logger.error(f"Failed to fetch conversation history: {e}")
             history = []
             
-    # 5. Build system and user prompts
-    system_prompt = (
-        "You are I.N.A.Y.A.T., a highly capable, local AI Knowledge Intelligence assistant.\n"
-        "Answer the user's question using the provided context and knowledge graph details.\n\n"
-        "RULES:\n"
-        "1. Direct citation: Cite the source chunks using [1], [2], [3] at the end of sentences that use facts from them.\n"
-        "2. If the context does not contain the answer, say that you cannot find it, but use your general knowledge if relevant (stating it clearly).\n"
-        "3. Provide clear, well-structured, professional explanations.\n"
-        "4. At the very end of your response, on a new line, write exactly: 'Confidence: [0-100]%'\n"
-        "/no_think"
-    )
-    
-    # Format chunks context
-    context_str = ""
-    if chunks:
-        context_str += "=== RETRIEVED TEXT CONTEXT ===\n"
-        for i, chunk in enumerate(chunks):
-            payload = chunk.get("payload", {})
-            text = payload.get("text", "")
-            filename = payload.get("filename", "unknown")
-            context_str += f"[{i+1}] (Source: {filename}):\n{text}\n\n"
+    # 5. Build system and user prompts and stream response
+    if strategy == "greeting":
+        greeting_lower = question.lower()
+        if "thank" in greeting_lower:
+            response_text = "You're welcome! Let me know if you need help with anything else."
+        elif "morning" in greeting_lower:
+            response_text = "Good morning! How can I help you with your documents or knowledge graphs today?"
+        elif "afternoon" in greeting_lower:
+            response_text = "Good afternoon! How can I help you with your documents or knowledge graphs today?"
+        elif "evening" in greeting_lower:
+            response_text = "Good evening! How can I help you with your documents or knowledge graphs today?"
+        else:
+            response_text = "Hello! I am I.N.A.Y.A.T., your local AI Knowledge Intelligence assistant. How can I help you with your documents or knowledge graphs today?"
+        
+        # Stream the predefined greeting smoothly
+        words = response_text.split(" ")
+        for i, word in enumerate(words):
+            token = word + (" " if i < len(words) - 1 else "")
+            yield f"event: token\ndata: {json.dumps(token)}\n\n"
+            await asyncio.sleep(0.03)  # smooth 30ms typing simulation
             
-    # Format graph context
-    graph_str = ""
-    if graph_data.get("nodes"):
-        graph_str += "=== RETRIEVED KNOWLEDGE GRAPH CONTEXT ===\n"
-        graph_str += "Entities:\n"
-        for node in graph_data["nodes"]:
-            graph_str += f"- {node['label']} (Type: {node['type']})\n"
-        graph_str += "Relationships:\n"
-        for edge in graph_data["edges"]:
-            graph_str += f"- {edge['source']} --({edge['relation']})--> {edge['target']}\n"
-        graph_str += "\n"
+        full_response = response_text + "\nConfidence: 100%"
+    else:
+        system_prompt = (
+            "You are I.N.A.Y.A.T., a highly capable, local AI Knowledge Intelligence assistant.\n"
+            "Answer the user's question using the provided context and knowledge graph details.\n\n"
+            "RULES:\n"
+            "1. Direct citation: Cite the source chunks using [1], [2], [3] at the end of sentences that use facts from them.\n"
+            "2. If the context does not contain the answer, say that you cannot find it, but use your general knowledge if relevant (stating it clearly).\n"
+            "3. Provide clear, well-structured, professional explanations.\n"
+            "4. At the very end of your response, on a new line, write exactly: 'Confidence: [0-100]%'\n"
+            "/no_think"
+        )
         
-    # Format history context
-    history_str = ""
-    if history:
-        history_str += "=== CONVERSATION HISTORY ===\n"
-        for msg in history:
-            role_label = "User" if msg["role"] == "user" else "Assistant"
-            history_str += f"{role_label}: {msg['content']}\n"
-        history_str += "\n"
-        
-    user_prompt = f"{context_str}{graph_str}{history_str}User Question: {question}\nAssistant Answer:"
+        # Format chunks context
+        context_str = ""
+        if chunks:
+            context_str += "=== RETRIEVED TEXT CONTEXT ===\n"
+            for i, chunk in enumerate(chunks):
+                payload = chunk.get("payload", {})
+                text = payload.get("text", "")
+                filename = payload.get("filename", "unknown")
+                context_str += f"[{i+1}] (Source: {filename}):\n{text}\n\n"
+                
+        # Format graph context
+        graph_str = ""
+        if graph_data.get("nodes"):
+            graph_str += "=== RETRIEVED KNOWLEDGE GRAPH CONTEXT ===\n"
+            graph_str += "Entities:\n"
+            for node in graph_data["nodes"]:
+                graph_str += f"- {node['label']} (Type: {node['type']})\n"
+            graph_str += "Relationships:\n"
+            for edge in graph_data["edges"]:
+                graph_str += f"- {edge['source']} --({edge['relation']})--> {edge['target']}\n"
+            graph_str += "\n"
+            
+        # Format history context
+        history_str = ""
+        if history:
+            history_str += "=== CONVERSATION HISTORY ===\n"
+            for msg in history:
+                role_label = "User" if msg["role"] == "user" else "Assistant"
+                history_str += f"{role_label}: {msg['content']}\n"
+            history_str += "\n"
+            
+        user_prompt = f"{context_str}{graph_str}{history_str}User Question: {question}\nAssistant Answer:"
     
-    # 6. Stream from Ollama and collect full response
-    full_response = ""
-    try:
-        async for token in ollama_service.generate_stream(
-            prompt=user_prompt,
-            system=system_prompt,
-        ):
-            full_response += token
-            # Yield token event (escape newlines for SSE format if needed, but standard SSE allows newlines in payload)
-            # Safe JSON serialization of the string/token is best or sending raw data
-            yield f"event: token\ndata: {token}\n\n"
-    except Exception as e:
-        logger.error(f"Stream generation failed: {e}", exc_info=True)
-        yield f"event: error\ndata: {json.dumps({'detail': f'Generation error: {str(e)}'})}\n\n"
-        return
+        # 6. Stream from Ollama and collect full response
+        full_response = ""
+        try:
+            async for token in ollama_service.generate_stream(
+                prompt=user_prompt,
+                system=system_prompt,
+            ):
+                full_response += token
+                # JSON-serialize token data to handle newlines safely
+                yield f"event: token\ndata: {json.dumps(token)}\n\n"
+        except Exception as e:
+            logger.error(f"Stream generation failed: {e}", exc_info=True)
+            yield f"event: error\ndata: {json.dumps({'detail': f'Generation error: {str(e)}'})}\n\n"
+            return
         
     # 7. Post-process to parse confidence and citations
     # Extract confidence score (e.g. "Confidence: 85%")

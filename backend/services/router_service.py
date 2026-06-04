@@ -30,25 +30,43 @@ def route_query(query: str) -> Dict[str, Any]:
         
     Returns:
         Dict containing:
-            - 'route': 'vector', 'graph', or 'hybrid'
+            - 'route': 'vector', 'graph', 'hybrid', or 'greeting'
             - 'reason': brief explanation of routing choice
     """
     q_lower = query.lower()
     
-    # Check graph keywords
-    has_graph_keyword = any(kw in q_lower for kw in GRAPH_KEYWORDS)
-    # Check vector keywords
-    has_vector_keyword = any(kw in q_lower for kw in VECTOR_KEYWORDS)
+    # 0. Check for greetings / pleasantries (P0 critical optimization)
+    clean_q = "".join(c for c in q_lower if c.isalnum() or c.isspace()).strip()
+    words = clean_q.split()
     
-    if has_graph_keyword and not has_vector_keyword:
-        strategy = "graph"
-        reason = "Query contains graph-focused keywords (relationships, connections, networks)."
-    elif has_vector_keyword and not has_graph_keyword:
-        strategy = "vector"
-        reason = "Query contains vector-focused keywords (definition, fact retrieval, description)."
+    greetings = {"hi", "hello", "hey", "greetings", "hola", "yo", "thanks", "thank", "thankyou", "welcome"}
+    pleasantries = {"how", "are", "you", "good", "morning", "afternoon", "evening", "there", "sup"}
+    
+    is_greeting = False
+    if len(words) > 0 and len(words) <= 4:
+        if all(w in greetings or w in pleasantries for w in words):
+            is_greeting = True
+        elif len(words) == 1 and words[0] in greetings:
+            is_greeting = True
+
+    if is_greeting:
+        strategy = "greeting"
+        reason = "Query is a simple greeting or pleasantry, handled via direct fast greeting response."
     else:
-        strategy = "hybrid"
-        reason = "Query demands both structural context and factual text content (default hybrid RAG)."
+        # Check graph keywords
+        has_graph_keyword = any(kw in q_lower for kw in GRAPH_KEYWORDS)
+        # Check vector keywords
+        has_vector_keyword = any(kw in q_lower for kw in VECTOR_KEYWORDS)
+        
+        if has_graph_keyword and not has_vector_keyword:
+            strategy = "graph"
+            reason = "Query contains graph-focused keywords (relationships, connections, networks)."
+        elif has_vector_keyword and not has_graph_keyword:
+            strategy = "vector"
+            reason = "Query contains vector-focused keywords (definition, fact retrieval, description)."
+        else:
+            strategy = "hybrid"
+            reason = "Query demands both structural context and factual text content (default hybrid RAG)."
         
     logger.info(f"Routed query '{query[:30]}...' to '{strategy}' strategy. Reason: {reason}")
     return {

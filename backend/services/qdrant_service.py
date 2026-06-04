@@ -6,6 +6,7 @@ Collection 'documents' uses:
   - Dense vector 'dense': 768-dim (nomic-embed-text:v1.5), Cosine distance
   - Sparse vector 'sparse': BM25-based sparse vectors
 """
+import hashlib
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -90,8 +91,12 @@ def upsert_chunks(
     ):
         chunk_id = f"{doc_id}_chunk_{i}"
 
+        # Deterministic int64 ID using SHA-256
+        h = hashlib.sha256(chunk_id.encode("utf-8")).hexdigest()
+        point_id = int(h[:16], 16) % (2**63)
+
         point = qmodels.PointStruct(
-            id=abs(hash(chunk_id)) % (2**63),  # Deterministic int64 ID
+            id=point_id,
             vector={
                 "dense": dense_vec,
                 "sparse": qmodels.SparseVector(

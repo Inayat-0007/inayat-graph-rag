@@ -146,25 +146,41 @@ export async function* parseSSEStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+      const messages = buffer.split("\n\n");
+      buffer = messages.pop() || "";
 
-      let currentEvent = "message";
-      let currentData = "";
+      for (const message of messages) {
+        if (!message.trim()) continue;
+        let event = "message";
+        let data = "";
 
-      for (const line of lines) {
-        if (line.startsWith("event: ")) {
-          currentEvent = line.slice(7).trim();
-        } else if (line.startsWith("data: ")) {
-          currentData = line.slice(6);
-        } else if (line === "") {
-          if (currentData) {
-            yield { event: currentEvent, data: currentData };
-            currentEvent = "message";
-            currentData = "";
+        const lines = message.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            event = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            const val = line.slice(6);
+            data = data ? data + "\n" + val : val;
           }
         }
+        yield { event, data };
       }
+    }
+
+    // Process any remaining message in the buffer
+    if (buffer.trim()) {
+      let event = "message";
+      let data = "";
+      const lines = buffer.split("\n");
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          event = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          const val = line.slice(6);
+          data = data ? data + "\n" + val : val;
+        }
+      }
+      yield { event, data };
     }
   } finally {
     reader.releaseLock();

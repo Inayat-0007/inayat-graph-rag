@@ -61,6 +61,9 @@ async def embed(texts: List[str]) -> List[List[float]]:
             json={
                 "model": EMBED_MODEL,  # nomic-embed-text:v1.5
                 "input": batch,
+                "options": {
+                    "num_gpu": 0,
+                },
             },
         )
         response.raise_for_status()
@@ -158,28 +161,43 @@ async def generate_stream(
 
     async with client.stream("POST", "/api/generate", json=request_body) as response:
         response.raise_for_status()
+        in_thinking = False
+        yielded_think_start = False
         async for line in response.aiter_lines():
             if line.strip():
                 try:
                     data = json.loads(line)
+                    thinking = data.get("thinking", "")
                     token = data.get("response", "")
+                    if thinking:
+                        if not yielded_think_start:
+                            yield "<think>\n"
+                            yielded_think_start = True
+                            in_thinking = True
+                        yield thinking
                     if token:
+                        if in_thinking:
+                            yield "\n</think>\n\n"
+                            in_thinking = False
                         yield token
                     if data.get("done", False):
+                        if in_thinking:
+                            yield "\n</think>\n\n"
                         break
                 except json.JSONDecodeError:
                     continue
 
 
-async def extract_entities(text: str) -> Dict[str, Any]:
+async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[str, Any]:
     """
     Extract entities and relationships from text using qwen3:4b in JSON mode.
 
-    Uses keep_alive="0" to free GPU memory after extraction (upload pipeline).
+    Uses keep_alive="0" by default to free GPU memory after extraction (upload pipeline).
     On any failure, returns an empty graph structure (graceful fallback).
 
     Args:
         text: Text to extract entities from
+        keep_alive: Optional keep_alive string ("0" to unload immediately)
 
     Returns:
         Dict with 'entities' (list of {name, type}) and
@@ -211,8 +229,9 @@ async def extract_entities(text: str) -> Dict[str, Any]:
             "options": {
                 "num_ctx": 4096,
             },
-            "keep_alive": "0",  # Free GPU memory immediately (upload pipeline)
         }
+        if keep_alive is not None:
+            request_body["keep_alive"] = keep_alive
 
         response = await client.post(
             "/api/generate",

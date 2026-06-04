@@ -58,8 +58,9 @@ async def upload_document(file: UploadFile = File(...)):
     if validation_error:
         raise HTTPException(status_code=400, detail=validation_error)
 
-    # 4. Generate unique document ID
-    doc_id = str(uuid.uuid4())
+    # 4. Generate deterministic document ID based on content hash
+    import hashlib
+    doc_id = hashlib.sha256(content_bytes).hexdigest()
 
     try:
         # 5. Extract text

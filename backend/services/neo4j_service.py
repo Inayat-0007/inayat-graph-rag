@@ -244,7 +244,7 @@ async def get_subgraph_for_entities(
             result = await session.run(
                 """
                 MATCH (e:Entity)
-                WHERE e.name IN $names
+                WHERE any(n IN $names WHERE toLower(e.name) CONTAINS toLower(n) OR toLower(n) CONTAINS toLower(e.name))
                 CALL apoc.path.subgraphAll(e, {
                     maxLevel: $hops,
                     relationshipFilter: "RELATES_TO|CONTAINS"
@@ -265,21 +265,26 @@ async def get_subgraph_for_entities(
             result = await session.run(
                 """
                 MATCH (e:Entity)
-                WHERE e.name IN $names
+                WHERE any(n IN $names WHERE toLower(e.name) CONTAINS toLower(n) OR toLower(n) CONTAINS toLower(e.name))
                 OPTIONAL MATCH (e)-[r:RELATES_TO]-(neighbor:Entity)
+                OPTIONAL MATCH (doc:Document)-[:CONTAINS]->(e)
                 RETURN e.name AS name, e.type AS type,
                        neighbor.name AS neighbor_name,
                        neighbor.type AS neighbor_type,
                        r.relation AS relation,
                        startNode(r).name AS rel_source,
-                       endNode(r).name AS rel_target
+                       endNode(r).name AS rel_target,
+                       doc.doc_id AS doc_id,
+                       doc.filename AS doc_filename
                 """,
                 names=entity_names,
             )
 
             fallback_records = [record async for record in result]
+            seen_edges = set()
 
             for record in fallback_records:
+                # Add central entity node
                 node_id = f"entity_{record['name']}"
                 if node_id not in seen_nodes:
                     nodes.append({
@@ -289,6 +294,7 @@ async def get_subgraph_for_entities(
                     })
                     seen_nodes.add(node_id)
 
+                # Add neighbor entity node if present
                 if record["neighbor_name"]:
                     neighbor_id = f"entity_{record['neighbor_name']}"
                     if neighbor_id not in seen_nodes:
@@ -299,36 +305,80 @@ async def get_subgraph_for_entities(
                         })
                         seen_nodes.add(neighbor_id)
 
+                    # Add RELATES_TO edge
                     if record["rel_source"] and record["rel_target"]:
-                        edges.append({
-                            "source": f"entity_{record['rel_source']}",
-                            "target": f"entity_{record['rel_target']}",
-                            "relation": record["relation"] or "RELATED",
+                        src_id = f"entity_{record['rel_source']}"
+                        tgt_id = f"entity_{record['rel_target']}"
+                        rel_type = record["relation"] or "RELATED"
+                        edge_key = (src_id, tgt_id, rel_type)
+                        if edge_key not in seen_edges:
+                            edges.append({
+                                "source": src_id,
+                                "target": tgt_id,
+                                "relation": rel_type,
+                            })
+                            seen_edges.add(edge_key)
+
+                # Add Document node if present
+                if record["doc_id"]:
+                    doc_node_id = f"doc_{record['doc_id']}"
+                    if doc_node_id not in seen_nodes:
+                        nodes.append({
+                            "id": doc_node_id,
+                            "label": record["doc_filename"] or "Document",
+                            "type": "Document",
                         })
+                        seen_nodes.add(doc_node_id)
+
+                    # Add CONTAINS edge
+                    edge_key = (doc_node_id, node_id, "CONTAINS")
+                    if edge_key not in seen_edges:
+                        edges.append({
+                            "source": doc_node_id,
+                            "target": node_id,
+                            "relation": "CONTAINS",
+                        })
+                        seen_edges.add(edge_key)
 
         else:
             # Process APOC results
+            internal_to_norm = {}
+            seen_edges = set()
+
             for record in records:
                 for node in record["subNodes"]:
                     labels = list(node.labels)
                     node_label = labels[0] if labels else "Unknown"
                     node_name = node.get("name", node.get("doc_id", str(node.id)))
-                    node_id = f"node_{node.id}"
 
-                    if node_id not in seen_nodes:
+                    if node_label == "Document":
+                        norm_id = f"doc_{node.get('doc_id', str(node.id))}"
+                    else:
+                        norm_id = f"entity_{node.get('name', str(node.id))}"
+
+                    internal_to_norm[node.id] = norm_id
+
+                    if norm_id not in seen_nodes:
                         nodes.append({
-                            "id": node_id,
+                            "id": norm_id,
                             "label": node_name,
                             "type": node_label,
                         })
-                        seen_nodes.add(node_id)
+                        seen_nodes.add(norm_id)
 
                 for rel in record["subRels"]:
-                    edges.append({
-                        "source": f"node_{rel.start_node.id}",
-                        "target": f"node_{rel.end_node.id}",
-                        "relation": rel.get("relation", rel.type),
-                    })
+                    src_id = internal_to_norm.get(rel.start_node.id, f"node_{rel.start_node.id}")
+                    tgt_id = internal_to_norm.get(rel.end_node.id, f"node_{rel.end_node.id}")
+                    rel_type = rel.get("relation", rel.type)
+
+                    edge_key = (src_id, tgt_id, rel_type)
+                    if edge_key not in seen_edges:
+                        edges.append({
+                            "source": src_id,
+                            "target": tgt_id,
+                            "relation": rel_type,
+                        })
+                        seen_edges.add(edge_key)
 
     return {"nodes": nodes, "edges": edges}
 

@@ -65,18 +65,18 @@ export default function HomePage() {
               <Brain className="h-12 w-12 md:h-16 md:w-16 text-neural-cyan animate-float" />
             </motion.div>
 
-            <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight">
-              <span className="text-gradient">I.N.A.Y.A.T.</span>
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight font-display">
+              <span className="text-gradient animate-gradient-x bg-gradient-to-r from-neural-cyan via-neural-purple to-neural-cyan bg-300%">I.N.A.Y.A.T.</span>
             </h1>
 
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl leading-relaxed">
-              <span className="text-foreground font-medium">I</span>ntelligent{" "}
-              <span className="text-foreground font-medium">N</span>eural{" "}
-              <span className="text-foreground font-medium">A</span>rchitecture
+              <span className="text-foreground font-semibold">I</span>ntelligent{" "}
+              <span className="text-foreground font-semibold">N</span>eural{" "}
+              <span className="text-foreground font-semibold">A</span>rchitecture
               for{" "}
-              <span className="text-foreground font-medium">Y</span>ielding{" "}
-              <span className="text-foreground font-medium">A</span>gentic{" "}
-              <span className="text-foreground font-medium">T</span>hinking
+              <span className="text-foreground font-semibold">Y</span>ielding{" "}
+              <span className="text-foreground font-semibold">A</span>gentic{" "}
+              <span className="text-foreground font-semibold">T</span>hinking
             </p>
 
             <p className="text-sm text-muted-foreground max-w-lg">
@@ -85,14 +85,25 @@ export default function HomePage() {
             </p>
           </motion.section>
 
-          {/* Health Dashboard */}
-          <motion.section variants={itemVariants}>
+          {/* Health Dashboard - Scroll Reveal */}
+          <motion.section
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
             <HealthDashboard />
           </motion.section>
 
-          {/* Quick Action Cards */}
-          <motion.section variants={itemVariants}>
-            <h2 className="text-xl font-semibold text-foreground mb-4">
+          {/* Quick Action Cards - Scroll Reveal */}
+          <motion.section
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.6, ease: "easeOut", delay: 0.15 }}
+          >
+            <h2 className="text-2xl font-bold tracking-tight text-foreground mb-6 font-display flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-neural-cyan" />
               Quick Actions
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

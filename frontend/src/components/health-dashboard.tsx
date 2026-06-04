@@ -123,8 +123,9 @@ export default function HealthDashboard() {
           const status =
             health?.services[
               service.key as keyof HealthResponse["services"]
-            ] || "unknown";
-          const isHealthy = status === "healthy";
+            ];
+          const isHealthy = status === true || status === "healthy";
+          const statusText = isHealthy ? "online" : (status === false ? "offline" : "unknown");
 
           return (
             <motion.div
@@ -160,7 +161,7 @@ export default function HealthDashboard() {
                         isHealthy ? "text-emerald-400" : "text-red-400"
                       )}
                     >
-                      {status}
+                      {statusText}
                     </span>
                   </div>
                 </CardContent>

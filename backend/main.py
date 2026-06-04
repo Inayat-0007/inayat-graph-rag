@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.config import DB_PATH, COLLECTION_NAME
-from backend.services import qdrant_service, neo4j_service
+from backend.services import qdrant_service, neo4j_service, memory_service
 from backend.routers import upload, documents, graph, health, query, history
 
 # Configure logging
@@ -25,34 +25,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-async def _init_sqlite():
-    """Initialize the SQLite database for conversation memory."""
-    db_dir = os.path.dirname(DB_PATH)
-    if db_dir:
-        os.makedirs(db_dir, exist_ok=True)
-
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS conversations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-        await db.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_session_id
-            ON conversations (session_id)
-            """
-        )
-        await db.commit()
-    logger.info(f"SQLite database initialized at {DB_PATH}")
 
 
 @asynccontextmanager
@@ -77,7 +49,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize SQLite database
     try:
-        await _init_sqlite()
+        await memory_service.init_db()
     except Exception as e:
         logger.warning(f"SQLite initialization failed: {e}")
 

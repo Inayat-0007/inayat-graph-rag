@@ -224,6 +224,12 @@ async def extract_entities(text: str) -> Dict[str, Any]:
 
         response_text = data.get("response", "").strip()
         if not response_text:
+            # Fallback for reasoning/thinking models which might output JSON inside the thinking/CoT field
+            response_text = data.get("thinking", "").strip()
+            if response_text:
+                logger.info("Found entity extraction payload inside the Ollama 'thinking' field")
+
+        if not response_text:
             logger.warning("Empty response from entity extraction")
             return empty_result
 

@@ -238,25 +238,30 @@ async def get_subgraph_for_entities(
         return {"nodes": nodes, "edges": edges}
 
     async with driver.session() as session:
-        result = await session.run(
-            f"""
-            MATCH (e:Entity)
-            WHERE e.name IN $names
-            CALL apoc.path.subgraphAll(e, {{
-                maxLevel: $hops,
-                relationshipFilter: "RELATES_TO|CONTAINS"
-            }})
-            YIELD nodes AS subNodes, relationships AS subRels
-            RETURN subNodes, subRels
-            """,
-            names=entity_names,
-            hops=hops,
-        )
-
-        records = [record async for record in result]
+        use_fallback = False
+        records = []
+        try:
+            result = await session.run(
+                """
+                MATCH (e:Entity)
+                WHERE e.name IN $names
+                CALL apoc.path.subgraphAll(e, {
+                    maxLevel: $hops,
+                    relationshipFilter: "RELATES_TO|CONTAINS"
+                })
+                YIELD nodes AS subNodes, relationships AS subRels
+                RETURN subNodes, subRels
+                """,
+                names=entity_names,
+                hops=hops,
+            )
+            records = [record async for record in result]
+        except Exception as e:
+            logger.warning(f"Neo4j APOC query failed (falling back to standard Cypher): {e}")
+            use_fallback = True
 
         # If APOC is not available, fall back to a simpler query
-        if not records:
+        if use_fallback or not records:
             result = await session.run(
                 """
                 MATCH (e:Entity)

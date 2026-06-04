@@ -27,8 +27,31 @@ echo -e "\n${YELLOW}[2/5]${NC} Starting Docker containers..."
 docker compose up -d
 echo "  Docker containers started."
 
-# Step 3: Wait for Neo4j to be healthy
-echo -e "\n${YELLOW}[3/5]${NC} Waiting for services to become healthy..."
+# Step 3: Wait for Neo4j & Qdrant to be healthy, and check Ollama status
+echo -e "\n${YELLOW}[3/5]${NC} Checking service dependencies..."
+
+# Trap exit signals to cleanup background servers automatically (M16)
+cleanup() {
+  echo -e "\n${YELLOW}Stopping background dev servers...${NC}"
+  if [ -n "$BACKEND_PID" ]; then
+    kill "$BACKEND_PID" 2>/dev/null || true
+  fi
+  if [ -n "$FRONTEND_PID" ]; then
+    kill "$FRONTEND_PID" 2>/dev/null || true
+  fi
+  docker compose down
+  exit 0
+}
+trap cleanup SIGINT SIGTERM EXIT
+
+# Check if Ollama is running (M15)
+echo -n "  Checking Ollama status..."
+if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
+  echo -e " ${RED}FAILED${NC}"
+  echo -e "${RED}Ollama is not running. Please launch Ollama before starting I.N.A.Y.A.T.${NC}"
+  exit 1
+fi
+echo -e " ${GREEN}OK${NC}"
 
 echo -n "  Waiting for Neo4j..."
 MAX_RETRIES=30
@@ -62,6 +85,12 @@ echo -e " ${GREEN}OK${NC}"
 
 # Step 5: Start backend
 echo -e "\n${YELLOW}[4/5]${NC} Starting backend server..."
+# Try to activate virtual environment if it exists (M14)
+if [ -d ".venv" ]; then
+  source .venv/bin/activate
+elif [ -d "venv" ]; then
+  source venv/bin/activate
+fi
 uvicorn backend.main:app --reload --port 8000 &
 BACKEND_PID=$!
 echo "  Backend started (PID: $BACKEND_PID) on http://localhost:8000"
@@ -74,7 +103,7 @@ cd ..
 echo "  Frontend started (PID: $FRONTEND_PID) on http://localhost:3000"
 
 echo -e "\n${GREEN}═══════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  All services are running!${NC}"
+echo -e "${GREEN}  All services are running! Press Ctrl+C to stop.${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════${NC}"
 echo ""
 echo "  Services:"
@@ -84,10 +113,6 @@ echo "    Qdrant:         http://localhost:6333"
 echo "    Backend API:    http://localhost:8000"
 echo "    Frontend:       http://localhost:3000"
 echo "    Health Check:   http://localhost:8000/api/health"
-echo ""
-echo "  To stop all services:"
-echo "    kill $BACKEND_PID $FRONTEND_PID"
-echo "    docker compose down"
 echo ""
 
 # Wait for background processes

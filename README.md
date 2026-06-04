@@ -73,7 +73,10 @@ ollama pull qwen3:4b
 Run the automated script to boot the databases, FastAPI backend, and Next.js frontend:
 ```bash
 # Windows (PowerShell)
-.\scripts\start_dev.sh
+.\scripts\start_dev.ps1
+
+# Linux / macOS / WSL (Bash)
+./scripts/start_dev.sh
 ```
 
 For full installation and troubleshooting steps, refer to [SETUP.md](file:///c:/Users/moham/Music/INAYAT%20MCA%20LNCT%20MAJOR%20PROJECT/SETUP.md).

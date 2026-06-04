@@ -3,11 +3,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export interface HealthResponse {
   status: string;
   services: {
-    qdrant: boolean;
-    neo4j: boolean;
-    ollama: boolean;
-    embed_model: boolean;
-    gen_model: boolean;
+    qdrant: string | boolean;
+    neo4j: string | boolean;
+    ollama: string | boolean;
+    embed_model: string | boolean;
+    gen_model: string | boolean;
   };
 }
 
@@ -180,6 +180,8 @@ export async function* parseSSEStream(
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let currentEvent = "message";
+  let currentData = "";
 
   try {
     while (true) {
@@ -187,41 +189,39 @@ export async function* parseSSEStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const messages = buffer.split("\n\n");
-      buffer = messages.pop() || "";
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || ""; // Keep the incomplete line in the buffer
 
-      for (const message of messages) {
-        if (!message.trim()) continue;
-        let event = "message";
-        let data = "";
-
-        const lines = message.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            event = line.slice(7).trim();
-          } else if (line.startsWith("data: ")) {
-            const val = line.slice(6);
-            data = data ? data + "\n" + val : val;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed === "") {
+          // Empty line indicates event completion
+          if (currentData) {
+            yield { event: currentEvent, data: currentData };
+            currentEvent = "message";
+            currentData = "";
           }
+        } else if (line.startsWith("event: ")) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          const val = line.slice(6); // Preserve whitespaces in tokens
+          currentData = currentData ? currentData + "\n" + val : val;
         }
-        yield { event, data };
       }
     }
 
-    // Process any remaining message in the buffer
+    // Process remainder if present
     if (buffer.trim()) {
-      let event = "message";
-      let data = "";
-      const lines = buffer.split("\n");
-      for (const line of lines) {
-        if (line.startsWith("event: ")) {
-          event = line.slice(7).trim();
-        } else if (line.startsWith("data: ")) {
-          const val = line.slice(6);
-          data = data ? data + "\n" + val : val;
-        }
+      const trimmed = buffer.trim();
+      if (trimmed.startsWith("event: ")) {
+        currentEvent = trimmed.slice(7).trim();
+      } else if (trimmed.startsWith("data: ")) {
+        const val = buffer.slice(6);
+        currentData = currentData ? currentData + "\n" + val : val;
       }
-      yield { event, data };
+    }
+    if (currentData) {
+      yield { event: currentEvent, data: currentData };
     }
   } finally {
     reader.releaseLock();

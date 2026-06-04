@@ -81,7 +81,23 @@ $env:OLLAMA_KV_CACHE_TYPE = "q8_0"
 
 ## 4. Start Services
 
-### Option A: Automated Start (Linux/macOS/WSL)
+### Option A: Automated Start (Windows - PowerShell)
+
+Run the native PowerShell launcher script to bootstrap the entire development environment:
+
+```powershell
+.\scripts\start_dev.ps1
+```
+
+This will automatically:
+1. Set Ollama optimal environment variables (`OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`)
+2. Boot Docker databases (Qdrant + Neo4j) in detached mode
+3. Check and wait for database port health endpoints
+4. Verify Ollama API status and required local model downloads
+5. Launch the FastAPI Uvicorn backend in a new PowerShell window
+6. Launch the Next.js dev server in another new PowerShell window
+
+### Option B: Automated Start (Linux/macOS/WSL)
 
 The `start_dev.sh` script handles everything:
 
@@ -97,7 +113,7 @@ This will:
 4. Start the backend API server
 5. Start the frontend dev server
 
-### Option B: Manual Start
+### Option C: Manual Start
 
 #### Step 4a: Start Docker Containers
 
@@ -303,9 +319,15 @@ docker compose down -v
 
 ```bash
 # Pull models (first time only)
+# Windows (PowerShell):
+.\scripts\pull_models.ps1
+# Linux/macOS (Bash):
 ./scripts/pull_models.sh
 
 # Start everything
+# Windows (PowerShell):
+.\scripts\start_dev.ps1
+# Linux/macOS (Bash):
 ./scripts/start_dev.sh
 
 # Or manually:

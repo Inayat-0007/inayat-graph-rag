@@ -33,46 +33,46 @@ async def health_check():
 
     # Check Qdrant
     try:
-        services.qdrant = qdrant_service.health_check()
+        services.qdrant = "connected" if qdrant_service.health_check() else "disconnected"
     except Exception as e:
         logger.error(f"Qdrant health check error: {e}")
-        services.qdrant = False
+        services.qdrant = "disconnected"
 
     # Check Neo4j
     try:
-        services.neo4j = await neo4j_service.health_check()
+        services.neo4j = "connected" if await neo4j_service.health_check() else "disconnected"
     except Exception as e:
         logger.error(f"Neo4j health check error: {e}")
-        services.neo4j = False
+        services.neo4j = "disconnected"
 
     # Check Ollama
     try:
-        services.ollama = await ollama_service.health_check()
+        services.ollama = "connected" if await ollama_service.health_check() else "disconnected"
     except Exception as e:
         logger.error(f"Ollama health check error: {e}")
-        services.ollama = False
+        services.ollama = "disconnected"
 
     # Check embedding model (nomic-embed-text:v1.5)
     try:
-        services.embed_model = await ollama_service.check_model(EMBED_MODEL)
+        services.embed_model = "available" if await ollama_service.check_model(EMBED_MODEL) else "unavailable"
     except Exception as e:
         logger.error(f"Embed model check error: {e}")
-        services.embed_model = False
+        services.embed_model = "unavailable"
 
     # Check generation model (qwen3:4b)
     try:
-        services.gen_model = await ollama_service.check_model(GEN_MODEL)
+        services.gen_model = "available" if await ollama_service.check_model(GEN_MODEL) else "unavailable"
     except Exception as e:
         logger.error(f"Gen model check error: {e}")
-        services.gen_model = False
+        services.gen_model = "unavailable"
 
     # Overall status
     all_healthy = all([
-        services.qdrant,
-        services.neo4j,
-        services.ollama,
-        services.embed_model,
-        services.gen_model,
+        services.qdrant == "connected",
+        services.neo4j == "connected",
+        services.ollama == "connected",
+        services.embed_model == "available",
+        services.gen_model == "available",
     ])
 
     status = "healthy" if all_healthy else "degraded"

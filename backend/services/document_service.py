@@ -170,7 +170,7 @@ def chunk_text(text: str) -> List[str]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
-        length_function=len,
+        length_function=lambda x: len(x) // 4,  # Approx 4 characters per token
         separators=["\n\n", "\n", ". ", " ", ""],
     )
 

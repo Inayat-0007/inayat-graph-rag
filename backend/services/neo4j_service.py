@@ -75,49 +75,52 @@ async def store_entities(
     """
     driver = await get_driver()
 
+    # Prepare batch of valid entities
+    valid_entities = []
+    for entity in entities:
+        name = entity.get("name", "").strip()
+        type_val = entity.get("type", "UNKNOWN").strip()
+        if name:
+            valid_entities.append({"name": name, "type": type_val})
+
+    # Prepare batch of valid relationships
+    valid_rels = []
+    for rel in relationships:
+        src = rel.get("source", "").strip()
+        tgt = rel.get("target", "").strip()
+        relation = rel.get("relation", "RELATED").strip()
+        if src and tgt:
+            valid_rels.append({"source": src, "target": tgt, "relation": relation})
+
     async with driver.session() as session:
-        # Create Entity nodes and CONTAINS relationships
-        for entity in entities:
-            entity_name = entity.get("name", "").strip()
-            entity_type = entity.get("type", "UNKNOWN").strip()
-
-            if not entity_name:
-                continue
-
+        # Create Entity nodes and CONTAINS relationships in batch
+        if valid_entities:
             await session.run(
                 """
                 MATCH (d:Document {doc_id: $doc_id})
-                MERGE (e:Entity {name: $name})
-                SET e.type = $type
+                UNWIND $entities AS entity
+                MERGE (e:Entity {name: entity.name})
+                SET e.type = entity.type
                 MERGE (d)-[:CONTAINS]->(e)
                 """,
                 doc_id=doc_id,
-                name=entity_name,
-                type=entity_type,
+                entities=valid_entities,
             )
 
-        # Create RELATES_TO relationships between entities
-        for rel in relationships:
-            source = rel.get("source", "").strip()
-            target = rel.get("target", "").strip()
-            relation = rel.get("relation", "RELATED").strip()
-
-            if not source or not target:
-                continue
-
+        # Create RELATES_TO relationships between entities in batch
+        if valid_rels:
             await session.run(
                 """
-                MERGE (s:Entity {name: $source})
-                MERGE (t:Entity {name: $target})
-                MERGE (s)-[r:RELATES_TO {relation: $relation}]->(t)
+                UNWIND $rels AS rel
+                MERGE (s:Entity {name: rel.source})
+                MERGE (t:Entity {name: rel.target})
+                MERGE (s)-[r:RELATES_TO {relation: rel.relation}]->(t)
                 """,
-                source=source,
-                target=target,
-                relation=relation,
+                rels=valid_rels,
             )
 
-    entity_count = len([e for e in entities if e.get("name", "").strip()])
-    rel_count = len([r for r in relationships if r.get("source", "").strip() and r.get("target", "").strip()])
+    entity_count = len(valid_entities)
+    rel_count = len(valid_rels)
     logger.info(
         f"Stored {entity_count} entities and {rel_count} relationships "
         f"for doc_id={doc_id}"

@@ -70,11 +70,11 @@ class HistoryResponse(BaseModel):
 
 class ServiceStatus(BaseModel):
     """Status of an individual service."""
-    qdrant: bool = False
-    neo4j: bool = False
-    ollama: bool = False
-    embed_model: bool = False
-    gen_model: bool = False
+    qdrant: str = "disconnected"
+    neo4j: str = "disconnected"
+    ollama: str = "disconnected"
+    embed_model: str = "unavailable"
+    gen_model: str = "unavailable"
 
 
 class HealthResponse(BaseModel):

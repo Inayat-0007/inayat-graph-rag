@@ -98,7 +98,7 @@ export default function NavBar() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all duration-200",
+                  "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all duration-200 relative pb-3",
                   isActive
                     ? "text-neural-cyan"
                     : "text-muted-foreground hover:text-foreground"
@@ -106,6 +106,9 @@ export default function NavBar() {
               >
                 {link.icon}
                 <span className="text-[10px] font-medium">{link.label}</span>
+                {isActive && (
+                  <span className="absolute bottom-1.5 w-1 h-1 rounded-full bg-neural-cyan shadow-[0_0_8px_#00e5ff]" />
+                )}
               </Link>
             );
           })}

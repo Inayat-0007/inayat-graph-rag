@@ -19,7 +19,10 @@ QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 # Neo4j settings
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "inayat2026")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")  # No hardcoded password default (M2)
+
+# CORS settings
+CORS_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 
 # Qdrant collection
 COLLECTION_NAME = "documents"

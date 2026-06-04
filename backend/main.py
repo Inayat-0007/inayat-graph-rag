@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.config import DB_PATH, COLLECTION_NAME
+from backend.config import DB_PATH, COLLECTION_NAME, CORS_ORIGINS, NEO4J_PASSWORD
 from backend.services import qdrant_service, neo4j_service, memory_service
 from backend.routers import upload, documents, graph, health, query, history
 
@@ -32,6 +32,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown events."""
     # === STARTUP ===
     logger.info("I.N.A.Y.A.T. API starting up...")
+    if not NEO4J_PASSWORD:
+        logger.warning(
+            "NEO4J_PASSWORD environment variable is not set. "
+            "Please ensure it is set in your .env file, otherwise connection to Neo4j database will fail."
+        )
 
     # Initialize Qdrant collection
     try:
@@ -81,10 +86,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware — allow frontend at localhost:3000
+# CORS middleware — allow configured origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

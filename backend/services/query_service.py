@@ -184,8 +184,12 @@ async def orchestrate_query(
             return
         
     # 7. Post-process to parse confidence and citations
-    # Extract confidence score (e.g. "Confidence: 85%")
-    confidence_match = re.search(r"Confidence:\s*(\d+)%", full_response, re.IGNORECASE)
+    # Extract confidence score (e.g. "Confidence: 85%", "Confidence: ~95%", "confidence score: 90%")
+    confidence_match = re.search(
+        r"confidence\s*(?:score|is|:|approximately|~)?\s*~?\s*(\d+)\s*%",
+        full_response,
+        re.IGNORECASE,
+    )
     confidence = int(confidence_match.group(1)) if confidence_match else 80
     
     # Remove the confidence line from backend storage memory if we want clean memory

@@ -124,8 +124,15 @@ export default function HealthDashboard() {
             health?.services[
               service.key as keyof HealthResponse["services"]
             ];
-          const isHealthy = status === true;
-          const statusText = isHealthy ? "online" : (status === false ? "offline" : "unknown");
+          const isHealthy = status === true || status === "connected" || status === "available";
+          const statusText =
+            status === true || status === "connected"
+              ? "online"
+              : status === "available"
+              ? "available"
+              : status === "unavailable"
+              ? "unavailable"
+              : "offline";
 
           return (
             <motion.div

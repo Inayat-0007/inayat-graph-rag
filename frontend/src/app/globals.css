@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 95%;
+    --card: 240 10% 6%;
+    --card-foreground: 0 0% 95%;
+    --primary: 186 100% 50%;
+    --primary-foreground: 240 10% 3.9%;
+    --secondary: 262 80% 77%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 186 100% 50%;
+    --accent-foreground: 240 10% 3.9%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 95%;
+    --border: 240 5% 18%;
+    --input: 240 5% 18%;
+    --ring: 186 100% 50%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg;
+  }
+
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl shadow-lg;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  }
+
+  .glass-hover {
+    @apply transition-all duration-300;
+  }
+
+  .glass-hover:hover {
+    @apply bg-white/10 border-white/20 shadow-xl;
+    transform: translateY(-2px);
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #00e5ff 0%, #b388ff 50%, #00e5ff 100%);
+    background-size: 300% 300%;
+    animation: gradient-x 3s ease infinite;
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.3),
+                0 0 30px rgba(0, 229, 255, 0.1);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 15px rgba(179, 136, 255, 0.3),
+                0 0 30px rgba(179, 136, 255, 0.1);
+  }
+
+  .status-healthy {
+    @apply text-emerald-400;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+  }
+
+  .status-unhealthy {
+    @apply text-red-400;
+    box-shadow: 0 0 8px rgba(248, 113, 113, 0.4);
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 10, 26, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 229, 255, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 229, 255, 0.5);
+}
+
+/* Gradient animation for text-gradient utility */
+@keyframes gradient-x {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Neural mesh container */
+.neural-mesh-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Page transition wrapper */
+.page-content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}

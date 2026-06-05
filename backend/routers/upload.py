@@ -98,7 +98,7 @@ async def upload_document(file: UploadFile = File(...)):
 
         # 10. Extract entities via qwen3:4b (with keep_alive=0, /no_think, num_ctx=4096)
         # Use first few chunks for entity extraction to avoid token limit
-        extraction_text = "\n\n".join(chunks[:5])
+        extraction_text = "\n\n".join(chunks[:3])
         entity_result = await ollama_service.extract_entities(extraction_text)
 
         entities = entity_result.get("entities", [])

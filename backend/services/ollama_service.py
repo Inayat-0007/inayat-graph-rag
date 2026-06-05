@@ -207,7 +207,8 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
 
     system_prompt = (
         "You are an entity extraction assistant. "
-        "Extract named entities and their relationships from the given text. "
+        "Extract key named entities and their relationships from the given text. "
+        "Limit the output to a maximum of 15 key entities and 15 key relationships to be concise. "
         "Return a valid JSON object with exactly two keys:\n"
         '- "entities": a list of objects with "name" (string) and "type" (string, e.g. PERSON, ORGANIZATION, CONCEPT, LOCATION, DATE, TECHNOLOGY)\n'
         '- "relationships": a list of objects with "source" (string), "target" (string), and "relation" (string)\n'
@@ -228,6 +229,7 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
             "format": "json",
             "options": {
                 "num_ctx": 4096,
+                "num_predict": 768,
             },
         }
         if keep_alive is not None:

@@ -27,6 +27,16 @@ async def get_driver() -> AsyncDriver:
             auth=(NEO4J_USER, NEO4J_PASSWORD),
         )
         logger.info(f"Neo4j async driver created for {NEO4J_URI}")
+        
+        # Create unique constraints to optimize matching/merging and prevent transaction lock contention
+        try:
+            async with _driver.session() as session:
+                await session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (e:Entity) REQUIRE e.name IS UNIQUE")
+                await session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (d:Document) REQUIRE d.doc_id IS UNIQUE")
+                logger.info("Neo4j database constraints initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to create Neo4j constraints: {e}")
+            
     return _driver
 
 

@@ -207,13 +207,32 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
 
     system_prompt = (
         "You are an entity extraction assistant. "
-        "Extract key named entities and their relationships from the given text. "
-        "Limit the output to a maximum of 15 key entities and 15 key relationships to be concise. "
-        "Return a valid JSON object with exactly two keys:\n"
-        '- "entities": a list of objects with "name" (string) and "type" (string, e.g. PERSON, ORGANIZATION, CONCEPT, LOCATION, DATE, TECHNOLOGY)\n'
-        '- "relationships": a list of objects with "source" (string), "target" (string), and "relation" (string)\n'
-        "Return ONLY the JSON object, no other text.\n"
-        "/no_think"
+        "Extract key named entities and their relationships from the given text.\n\n"
+        "Return a valid JSON object matching this schema exactly:\n"
+        "{\n"
+        '  "entities": [\n'
+        '    {"name": "Entity Name", "type": "Entity Type"}\n'
+        "  ],\n"
+        '  "relationships": [\n'
+        '    {"source": "Entity Name 1", "target": "Entity Name 2", "relation": "RELATIONSHIP"}\n'
+        "  ]\n"
+        "}\n\n"
+        "Use only these types: PERSON, ORGANIZATION, CONCEPT, LOCATION, DATE, TECHNOLOGY.\n\n"
+        "Example input:\n"
+        "Moham works at LNCT Group in Bhopal.\n\n"
+        "Example output:\n"
+        "{\n"
+        '  "entities": [\n'
+        '    {"name": "Moham", "type": "PERSON"},\n'
+        '    {"name": "LNCT Group", "type": "ORGANIZATION"},\n'
+        '    {"name": "Bhopal", "type": "LOCATION"}\n'
+        "  ],\n"
+        '  "relationships": [\n'
+        '    {"source": "Moham", "target": "LNCT Group", "relation": "WORKS_AT"},\n'
+        '    {"source": "LNCT Group", "target": "Bhopal", "relation": "LOCATED_IN"}\n'
+        "  ]\n"
+        "}\n\n"
+        "Return ONLY the JSON object, no other text."
     )
 
     prompt = f"Extract entities and relationships from the following text:\n\n{text[:3000]}"
@@ -227,9 +246,11 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
             "system": system_prompt,
             "stream": False,
             "format": "json",
+            "think": False,  # Disable reasoning phase for speed and accuracy
             "options": {
                 "num_ctx": 4096,
-                "num_predict": 768,
+                "num_predict": 1024,  # Increased token limit
+                "temperature": 0.0,   # Deterministic formatting
             },
         }
         if keep_alive is not None:
@@ -261,23 +282,67 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
         entities = parsed.get("entities", [])
         relationships = parsed.get("relationships", [])
 
-        # Ensure each entity has required fields
+        # Ensure each entity has required fields, with robust cleanup for local LLM formatting quirks
         validated_entities = []
+        import re
         for entity in entities:
-            if isinstance(entity, dict) and "name" in entity:
-                validated_entities.append({
-                    "name": str(entity["name"]),
-                    "type": str(entity.get("type", "UNKNOWN")),
-                })
+            if not isinstance(entity, dict):
+                continue
+                
+            name = None
+            entity_type = entity.get("type", "UNKNOWN")
+            
+            # Normal check
+            if "name" in entity:
+                name = entity["name"]
+            else:
+                # Handle local model formatting corruption (e.g. key is ": " and value is 'name": "Qdrant"')
+                for k, v in entity.items():
+                    k_str = str(k).strip()
+                    v_str = str(v).strip()
+                    if "name" in v_str:
+                        match = re.search(r'name\\*"\s*:\s*\\*"([^"]+)\\*"', v_str)
+                        if match:
+                            name = match.group(1)
+                            break
+                        # Fallback parsing
+                        name = v_str.replace('name":', '').replace('name\\":', '').replace('"', '').replace('\\', '').strip()
+                        break
+                    elif k_str != "type" and k_str != "name":
+                        # Key is some weird string, value might be the name
+                        name = v_str.replace('"', '').replace('\\', '').strip()
+                        break
+            
+            if name:
+                # Clean up any residual escaping or quotes
+                name_clean = str(name).replace('"', '').replace('\\', '').strip()
+                if name_clean:
+                    validated_entities.append({
+                        "name": name_clean,
+                        "type": str(entity_type).upper().strip(),
+                    })
 
         validated_relationships = []
         for rel in relationships:
-            if isinstance(rel, dict) and "source" in rel and "target" in rel:
-                validated_relationships.append({
-                    "source": str(rel["source"]),
-                    "target": str(rel["target"]),
-                    "relation": str(rel.get("relation", "RELATED")),
-                })
+            if not isinstance(rel, dict):
+                continue
+            
+            source = rel.get("source")
+            target = rel.get("target")
+            relation = rel.get("relation", "RELATED")
+            
+            if source and target:
+                # Clean up any residual escaping or quotes
+                source_clean = str(source).replace('"', '').replace('\\', '').strip()
+                target_clean = str(target).replace('"', '').replace('\\', '').strip()
+                relation_clean = str(relation).replace('"', '').replace('\\', '').replace(' ', '_').upper().strip()
+                
+                if source_clean and target_clean:
+                    validated_relationships.append({
+                        "source": source_clean,
+                        "target": target_clean,
+                        "relation": relation_clean,
+                    })
 
         result = {
             "entities": validated_entities,

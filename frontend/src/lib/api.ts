@@ -86,6 +86,7 @@ export async function fetchHealth(): Promise<HealthResponse> {
   const res = await fetch(`${API_BASE}/api/health`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
+    cache: "no-store",
   });
   if (!res.ok) {
     throw new Error(`Health check failed: ${res.status} ${res.statusText}`);
@@ -100,6 +101,7 @@ export async function fetchDocuments(): Promise<DocumentsResponse> {
   const res = await fetch(`${API_BASE}/api/documents`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
+    cache: "no-store",
   });
   if (!res.ok) {
     throw new Error(`Fetch documents failed: ${res.status} ${res.statusText}`);
@@ -180,8 +182,6 @@ export async function* parseSSEStream(
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let currentEvent = "message";
-  let currentData = "";
 
   try {
     while (true) {
@@ -189,39 +189,53 @@ export async function* parseSSEStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || ""; // Keep the incomplete line in the buffer
+      
+      // SSE messages are separated by double newlines (\n\n or \r\n\r\n)
+      const messages = buffer.split(/\n\n|\r\n\r\n/);
+      // Keep the last segment (incomplete message) in the buffer
+      buffer = messages.pop() || "";
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed === "") {
-          // Empty line indicates event completion
-          if (currentData) {
-            yield { event: currentEvent, data: currentData };
-            currentEvent = "message";
-            currentData = "";
+      for (const message of messages) {
+        if (!message.trim()) continue;
+
+        let event = "message";
+        let data = "";
+
+        const lines = message.split(/\r?\n/);
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            event = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            const val = line.slice(6);
+            // Handle trailing \r if any
+            const cleanVal = val.endsWith("\r") ? val.slice(0, -1) : val;
+            data = data ? data + "\n" + cleanVal : cleanVal;
           }
-        } else if (line.startsWith("event: ")) {
-          currentEvent = line.slice(7).trim();
-        } else if (line.startsWith("data: ")) {
-          const val = line.slice(6); // Preserve whitespaces in tokens
-          currentData = currentData ? currentData + "\n" + val : val;
+        }
+
+        if (data) {
+          yield { event, data };
         }
       }
     }
 
     // Process remainder if present
     if (buffer.trim()) {
-      const trimmed = buffer.trim();
-      if (trimmed.startsWith("event: ")) {
-        currentEvent = trimmed.slice(7).trim();
-      } else if (trimmed.startsWith("data: ")) {
-        const val = buffer.slice(6);
-        currentData = currentData ? currentData + "\n" + val : val;
+      let event = "message";
+      let data = "";
+      const lines = buffer.split(/\r?\n/);
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          event = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          const val = line.slice(6);
+          const cleanVal = val.endsWith("\r") ? val.slice(0, -1) : val;
+          data = data ? data + "\n" + cleanVal : cleanVal;
+        }
       }
-    }
-    if (currentData) {
-      yield { event: currentEvent, data: currentData };
+      if (data) {
+        yield { event, data };
+      }
     }
   } finally {
     reader.releaseLock();
@@ -237,6 +251,7 @@ export async function fetchGraph(docId: string): Promise<GraphResponse> {
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
+      cache: "no-store",
     }
   );
   if (!res.ok) {
@@ -254,6 +269,7 @@ export async function fetchHistory(sessionId: string): Promise<HistoryResponse> 
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
+      cache: "no-store",
     }
   );
   if (!res.ok) {
@@ -269,6 +285,7 @@ export async function fetchSessions(): Promise<SessionsResponse> {
   const res = await fetch(`${API_BASE}/api/history/sessions`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
+    cache: "no-store",
   });
   if (!res.ok) {
     throw new Error(`Fetch sessions failed: ${res.status} ${res.statusText}`);
@@ -299,6 +316,7 @@ export async function fetchDocumentChunks(docId: string): Promise<DocumentChunks
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
+      cache: "no-store",
     }
   );
   if (!res.ok) {

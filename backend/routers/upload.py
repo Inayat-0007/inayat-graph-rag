@@ -104,20 +104,8 @@ async def upload_document(file: UploadFile = File(...)):
         entities = entity_result.get("entities", [])
         relationships = entity_result.get("relationships", [])
 
-        # 11. Store document and entities in Neo4j
-        await neo4j_service.store_document(doc_id, filename)
-
-        # Store file size in Neo4j for document listing
-        driver = await neo4j_service.get_driver()
-        async with driver.session() as session:
-            await session.run(
-                """
-                MATCH (d:Document {doc_id: $doc_id})
-                SET d.size = $size
-                """,
-                doc_id=doc_id,
-                size=len(content_bytes),
-            )
+        # 11. Store document (including file size) and entities in Neo4j
+        await neo4j_service.store_document(doc_id, filename, size=len(content_bytes))
 
         if entities or relationships:
             await neo4j_service.store_entities(doc_id, entities, relationships)

@@ -282,3 +282,12 @@ def get_document_chunks(doc_id: str) -> List[Dict[str, Any]]:
         logger.error(f"Failed to scroll document chunks for doc_id={doc_id}: {e}")
         return []
 
+
+def close() -> None:
+    """Close the Qdrant client."""
+    global _client
+    if _client is not None:
+        _client.close()
+        _client = None
+        logger.info("Qdrant client closed")
+

@@ -109,6 +109,7 @@ async def generate(
         "prompt": prompt,
         "system": system_prompt,
         "stream": False,
+        "think": False,  # Disable reasoning phase
         "options": {
             "num_ctx": 4096,  # CRITICAL: Cap KV cache
         },
@@ -151,6 +152,7 @@ async def generate_stream(
         "prompt": prompt,
         "system": system_prompt,
         "stream": True,
+        "think": False,  # Disable reasoning phase — cleaner output for demo
         "options": {
             "num_ctx": 4096,
         },
@@ -159,33 +161,63 @@ async def generate_stream(
     if keep_alive is not None:
         request_body["keep_alive"] = keep_alive
 
-    async with client.stream("POST", "/api/generate", json=request_body) as response:
-        response.raise_for_status()
-        in_thinking = False
-        yielded_think_start = False
-        async for line in response.aiter_lines():
-            if line.strip():
-                try:
-                    data = json.loads(line)
-                    thinking = data.get("thinking", "")
-                    token = data.get("response", "")
-                    if thinking:
-                        if not yielded_think_start:
-                            yield "<think>\n"
-                            yielded_think_start = True
-                            in_thinking = True
-                        yield thinking
-                    if token:
-                        if in_thinking:
-                            yield "\n</think>\n\n"
-                            in_thinking = False
-                        yield token
-                    if data.get("done", False):
-                        if in_thinking:
-                            yield "\n</think>\n\n"
-                        break
-                except json.JSONDecodeError:
+    async def raw_generator() -> AsyncGenerator[str, None]:
+        async with client.stream("POST", "/api/generate", json=request_body) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line.strip():
+                    try:
+                        data = json.loads(line)
+                        token = data.get("response", "")
+                        if token:
+                            yield token
+                        if data.get("done", False):
+                            break
+                    except json.JSONDecodeError:
+                        continue
+
+    # Filter out <think>...</think> blocks and their content statefully
+    buffer = ""
+    in_think = False
+    async for token in raw_generator():
+        buffer += token
+        while True:
+            if not in_think:
+                # Look for "<think>" start tag
+                idx = buffer.find("<think>")
+                if idx != -1:
+                    if idx > 0:
+                        yield buffer[:idx]
+                    buffer = buffer[idx + 7:]
+                    in_think = True
                     continue
+                
+                # Check for partial "<think>" at the end of buffer
+                partial_match = False
+                for i in range(1, min(7, len(buffer) + 1)):
+                    suffix = buffer[-i:]
+                    if "<think>"[:i] == suffix:
+                        yield_len = len(buffer) - i
+                        if yield_len > 0:
+                            yield buffer[:yield_len]
+                        buffer = suffix
+                        partial_match = True
+                        break
+                if not partial_match:
+                    yield buffer
+                    buffer = ""
+                break
+            else:
+                # Look for "</think>" end tag
+                idx = buffer.find("</think>")
+                if idx != -1:
+                    buffer = buffer[idx + 8:]
+                    in_think = False
+                    continue
+                break
+
+    if buffer and not in_think:
+        yield buffer
 
 
 async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[str, Any]:
@@ -207,7 +239,7 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
 
     system_prompt = (
         "You are an entity extraction assistant. "
-        "Extract key named entities and their relationships from the given text.\n\n"
+        "Extract key named entities (maximum 15) and their relationships (maximum 15) from the given text.\n\n"
         "Return a valid JSON object matching this schema exactly:\n"
         "{\n"
         '  "entities": [\n'
@@ -218,6 +250,9 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
         "  ]\n"
         "}\n\n"
         "Use only these types: PERSON, ORGANIZATION, CONCEPT, LOCATION, DATE, TECHNOLOGY.\n\n"
+        "CRITICAL: If the text does not contain any specific, meaningful named entities matching these types, "
+        "return empty lists: {\"entities\": [], \"relationships\": []}. Do NOT extract generic common nouns "
+        "(such as 'desk', 'chair', 'wall', 'water', 'carpet', 'corner', 'door', 'employees', 'paper') as entities.\n\n"
         "Example input:\n"
         "Moham works at LNCT Group in Bhopal.\n\n"
         "Example output:\n"
@@ -235,6 +270,10 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
         "Return ONLY the JSON object, no other text."
     )
 
+    # CRITICAL: System prompt MUST end with /no_think
+    if not system_prompt.endswith("/no_think"):
+        system_prompt = f"{system_prompt}\n/no_think"
+
     prompt = f"Extract entities and relationships from the following text:\n\n{text[:3000]}"
 
     client = _get_http_client()
@@ -249,7 +288,7 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
             "think": False,  # Disable reasoning phase for speed and accuracy
             "options": {
                 "num_ctx": 4096,
-                "num_predict": 1024,  # Increased token limit
+                "num_predict": 1536,  # Increased token limit to prevent truncation
                 "temperature": 0.0,   # Deterministic formatting
             },
         }
@@ -259,7 +298,7 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
         response = await client.post(
             "/api/generate",
             json=request_body,
-            timeout=httpx.Timeout(120.0, connect=10.0),
+            timeout=httpx.Timeout(600.0, connect=10.0),
         )
         response.raise_for_status()
         data = response.json()
@@ -275,8 +314,34 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
             logger.warning("Empty response from entity extraction")
             return empty_result
 
-        # Parse the JSON response
-        parsed = json.loads(response_text)
+        # Parse the JSON response robustly by extracting the JSON block
+        import re
+        parsed = None
+        try:
+            parsed = json.loads(response_text)
+        except json.JSONDecodeError:
+            # Try to find a JSON block enclosed in markdown code blocks
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL | re.IGNORECASE)
+            if match:
+                try:
+                    parsed = json.loads(match.group(1).strip())
+                except json.JSONDecodeError:
+                    pass
+
+            # Fallback to finding the first { and last }
+            if parsed is None:
+                first_brace = response_text.find("{")
+                last_brace = response_text.rfind("}")
+                if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+                    candidate = response_text[first_brace:last_brace + 1].strip()
+                    try:
+                        parsed = json.loads(candidate)
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse extracted JSON block: {candidate}")
+                        raise
+                else:
+                    logger.warning("No curly braces found in the response")
+                    raise
 
         # Validate the structure
         entities = parsed.get("entities", [])
@@ -357,12 +422,16 @@ async def extract_entities(text: str, keep_alive: Optional[str] = "0") -> Dict[s
 
     except json.JSONDecodeError as e:
         logger.warning(f"Failed to parse entity extraction JSON: {e}")
+        try:
+            logger.warning(f"Raw response was: {response_text}")
+        except NameError:
+            pass
         return empty_result
     except httpx.HTTPError as e:
-        logger.warning(f"HTTP error during entity extraction: {e}")
+        logger.exception("HTTP error during entity extraction")
         return empty_result
     except Exception as e:
-        logger.warning(f"Entity extraction failed (graceful fallback): {e}")
+        logger.exception("Entity extraction failed (graceful fallback)")
         return empty_result
 
 
@@ -397,3 +466,12 @@ async def health_check() -> bool:
     except Exception as e:
         logger.error(f"Ollama health check failed: {e}")
         return False
+
+
+async def close_client() -> None:
+    """Close the shared httpx client."""
+    global _http_client
+    if _http_client is not None:
+        await _http_client.aclose()
+        _http_client = None
+        logger.info("Ollama HTTP client closed")

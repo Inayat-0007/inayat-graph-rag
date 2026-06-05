@@ -18,15 +18,18 @@ interface ConversationSidebarProps {
   currentSessionId: string;
   onSessionSelect: (sessionId: string) => void;
   onNewSession: () => void;
+  collapsed: boolean;
+  setCollapsed: (collapsed: boolean) => void;
 }
 
 export default function ConversationSidebar({
   currentSessionId,
   onSessionSelect,
   onNewSession,
+  collapsed,
+  setCollapsed,
 }: ConversationSidebarProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [collapsed, setCollapsed] = useState(false);
 
   const loadSessions = async () => {
     try {
@@ -37,12 +40,43 @@ export default function ConversationSidebar({
           name: s.first_question || "New Conversation",
           timestamp: new Date(s.last_message_at).getTime(),
         }));
+        
+        // Ensure active session is prepended if not in database yet
+        const sessionExists = data.sessions.some(s => s.session_id === currentSessionId);
+        if (!sessionExists && currentSessionId) {
+          mapped.unshift({
+            id: currentSessionId,
+            name: "New Conversation",
+            timestamp: Date.now()
+          });
+        }
+        
         setSessions(mapped);
       } else {
         // Fallback to localStorage or single session
         const saved = localStorage.getItem("inayat_chat_sessions");
         if (saved) {
-          setSessions(JSON.parse(saved));
+          try {
+            const list = JSON.parse(saved);
+            const exists = list.some((s: any) => s.id === currentSessionId);
+            if (!exists && currentSessionId) {
+              list.unshift({
+                id: currentSessionId,
+                name: "New Conversation",
+                timestamp: Date.now()
+              });
+              localStorage.setItem("inayat_chat_sessions", JSON.stringify(list));
+            }
+            setSessions(list);
+          } catch {
+            const initial: Session = {
+              id: currentSessionId,
+              name: "New Conversation",
+              timestamp: Date.now(),
+            };
+            setSessions([initial]);
+            localStorage.setItem("inayat_chat_sessions", JSON.stringify([initial]));
+          }
         } else {
           const initial: Session = {
             id: currentSessionId,
@@ -115,8 +149,10 @@ export default function ConversationSidebar({
   return (
     <div
       className={cn(
-        "h-full border-r border-white/5 bg-neural-darker/35 flex flex-col transition-all duration-300 relative select-none",
-        collapsed ? "w-14" : "w-64"
+        "fixed md:relative inset-y-0 left-0 z-50 md:z-0 flex flex-col h-full border-r border-white/5 transition-all duration-300 select-none",
+        collapsed
+          ? "w-0 -translate-x-full md:w-14 md:translate-x-0 overflow-hidden border-r-0 md:border-r bg-neural-darker/80"
+          : "w-64 translate-x-0 bg-neural-darker/95 backdrop-blur-xl md:bg-neural-darker/35"
       )}
     >
       {/* Right Edge Glow Separator */}

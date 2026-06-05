@@ -31,6 +31,7 @@ import {
   DocumentChunkInfo 
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import toast from "react-hot-toast";
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
@@ -144,6 +145,7 @@ export default function DocumentsPage() {
     
     try {
       await deleteDocument(docId);
+      toast.success("Document deleted from vector and graph databases");
       if (selectedDoc?.doc_id === docId) {
         setSelectedDoc(null);
         setChunks([]);
@@ -152,7 +154,7 @@ export default function DocumentsPage() {
       loadDocuments();
     } catch (err) {
       console.error("Failed to delete document:", err);
-      alert("Failed to delete document.");
+      toast.error("Failed to delete document. Check backend connection.");
     }
   };
 

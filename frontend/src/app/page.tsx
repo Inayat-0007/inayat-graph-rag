@@ -8,6 +8,7 @@ import { FileUp, MessageSquare, Brain, Sparkles, ArrowRight } from "lucide-react
 import HealthDashboard from "@/components/health-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import TiltCard from "@/components/ui/tilt-card";
 
 // Dynamically import NeuralMesh to avoid SSR issues with Three.js
 const NeuralMesh = dynamic(() => import("@/components/neural-mesh"), {
@@ -107,8 +108,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight font-display relative">
-              <span className="text-gradient animate-gradient-x bg-gradient-to-r from-neural-cyan via-neural-purple to-neural-cyan bg-300% select-none">
+            <h1 className="text-5xl sm:text-6xl md:text-8xl font-extrabold tracking-tighter font-display relative">
+              <span className="text-shimmer-display text-glow select-none">
                 I.N.A.Y.A.T.
               </span>
             </h1>
@@ -161,7 +162,7 @@ export default function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Upload Documents Card */}
               <Link href="/documents" className="block h-full group">
-                <div className="glass-premium gradient-border p-6 h-full flex flex-col justify-between relative overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,229,255,0.12)] hover:-translate-y-1.5">
+                <TiltCard className="gradient-border p-6 h-full flex flex-col justify-between" glowColor="rgba(0, 229, 255, 0.15)">
                   <div>
                     <div className="flex items-center gap-4 mb-4">
                       <div className="p-3 rounded-xl bg-neural-cyan/10 text-neural-cyan group-hover:bg-neural-cyan/20 group-hover:scale-110 transition-all duration-350 shadow-inner">
@@ -182,12 +183,12 @@ export default function HomePage() {
                     </div>
                     <ArrowRight className="h-5 w-5 text-neural-cyan opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
                   </div>
-                </div>
+                </TiltCard>
               </Link>
 
               {/* Ask a Question Card */}
               <Link href="/ask" className="block h-full group">
-                <div className="glass-premium gradient-border p-6 h-full flex flex-col justify-between relative overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(179,136,255,0.12)] hover:-translate-y-1.5">
+                <TiltCard className="gradient-border p-6 h-full flex flex-col justify-between" glowColor="rgba(179, 136, 255, 0.15)">
                   <div>
                     <div className="flex items-center gap-4 mb-4">
                       <div className="p-3 rounded-xl bg-neural-purple/10 text-neural-purple group-hover:bg-neural-purple/20 group-hover:scale-110 transition-all duration-350 shadow-inner">
@@ -208,7 +209,7 @@ export default function HomePage() {
                     </div>
                     <ArrowRight className="h-5 w-5 text-neural-purple opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
                   </div>
-                </div>
+                </TiltCard>
               </Link>
             </div>
           </motion.section>

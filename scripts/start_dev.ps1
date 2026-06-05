@@ -89,14 +89,23 @@ $pythonPath = "python"
 # Check if virtual environment exists and use its python if present
 if (Test-Path ".venv\Scripts\python.exe") {
     $pythonPath = ".venv\Scripts\python.exe"
+} else {
+    # Find all python paths and pick the first one that does not contain WindowsApps
+    $wherePaths = where.exe python 2>$null
+    foreach ($p in $wherePaths) {
+        if ($p -notlike "*WindowsApps*") {
+            $pythonPath = $p
+            break
+        }
+    }
 }
 
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting I.N.A.Y.A.T. Backend...' -ForegroundColor Green; $pythonPath -m uvicorn backend.main:app --port 8000"
+Start-Process powershell -WorkingDirectory (Get-Location).Path -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting I.N.A.Y.A.T. Backend...' -ForegroundColor Green; & '$pythonPath' -m uvicorn backend.main:app --port 8000"
 Write-Host "  Backend running on http://localhost:8000"
 
 # Step 5: Start frontend
 Write-Host "`n[5/5] Launching frontend developer server in a separate window..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting I.N.A.Y.A.T. Frontend...' -ForegroundColor Green; cd frontend; npm run dev"
+Start-Process powershell -WorkingDirectory (Get-Location).Path -ArgumentList "-NoExit", "-Command", "Write-Host 'Starting I.N.A.Y.A.T. Frontend...' -ForegroundColor Green; cd frontend; npm run dev"
 Write-Host "  Frontend running on http://localhost:3000"
 
 Write-Host "`n=============================================" -ForegroundColor Green

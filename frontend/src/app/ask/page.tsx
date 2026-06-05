@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { Send, ArrowLeft, Loader2, RefreshCw, Menu, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,9 @@ import ChatStream from "@/components/chat-stream";
 import ConfidenceGauge from "@/components/confidence-gauge";
 import CitationBadges, { Citation } from "@/components/citation-badges";
 import KnowledgeGraph from "@/components/knowledge-graph";
-import { queryStream, parseSSEStream, fetchHistory, fetchSessions } from "@/lib/api";
+import { queryStream, parseSSEStream, fetchHistory, fetchSessions, deleteSession } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import toast from "react-hot-toast";
 
 interface Message {
   role: string;
@@ -35,6 +36,15 @@ export default function AskPage() {
     edges: [],
   });
 
+  const [collapsed, setCollapsed] = useState(true);
+  const [activeTab, setActiveTab] = useState<"chat" | "metrics">("chat");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCollapsed(window.innerWidth < 768);
+    }
+  }, []);
+
   // Load session from sessionStorage or create a new one, and sync active session from backend
   useEffect(() => {
     const initializeSession = async () => {
@@ -48,11 +58,12 @@ export default function AskPage() {
           sessionStorage.setItem("inayat_current_session_id", activeSessionId);
           loadHistory(activeSessionId);
         } else {
-          // Create new session
-          const newSessionId = `session_${Date.now()}`;
-          setSessionId(newSessionId);
-          sessionStorage.setItem("inayat_current_session_id", newSessionId);
-          loadHistory(newSessionId);
+          // Create or reuse session
+          const savedSessionId = sessionStorage.getItem("inayat_current_session_id");
+          const activeSessionId = savedSessionId || `session_${Date.now()}`;
+          setSessionId(activeSessionId);
+          sessionStorage.setItem("inayat_current_session_id", activeSessionId);
+          loadHistory(activeSessionId);
         }
       } catch (e) {
         console.error("Failed to fetch sessions from backend:", e);
@@ -106,6 +117,10 @@ export default function AskPage() {
     setSessionId(sessId);
     sessionStorage.setItem("inayat_current_session_id", sessId);
     loadHistory(sessId);
+    setActiveTab("chat");
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setCollapsed(true);
+    }
   };
 
   const handleNewSession = () => {
@@ -129,6 +144,38 @@ export default function AskPage() {
     }
     
     loadHistory(newSessId);
+    setActiveTab("chat");
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setCollapsed(true);
+    }
+  };
+
+  const handleDeleteActiveSession = async () => {
+    if (!sessionId) return;
+    const confirmDelete = window.confirm("Are you sure you want to delete this inquiry session? This action cannot be undone.");
+    if (!confirmDelete) return;
+
+    try {
+      await deleteSession(sessionId);
+      toast.success("Session deleted successfully.");
+
+      // Clear local storage reference
+      const saved = localStorage.getItem("inayat_chat_sessions");
+      if (saved) {
+        try {
+          const list = JSON.parse(saved);
+          const updated = list.filter((s: any) => s.id !== sessionId);
+          localStorage.setItem("inayat_chat_sessions", JSON.stringify(updated));
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      handleNewSession();
+    } catch (err: any) {
+      console.error("Failed to delete active session:", err);
+      toast.error(`Failed to delete session: ${err.message || err}`);
+    }
   };
 
   const submitQuestion = async (query: string) => {
@@ -214,11 +261,13 @@ export default function AskPage() {
 
     } catch (err: any) {
       console.error(err);
+      const errMsg = err.message || "Connection refused.";
+      toast.error(`Query failed: ${errMsg}`);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Failed to query agent: ${err.message || "Connection refused."}`,
+          content: `Failed to query agent: ${errMsg}`,
         },
       ]);
     } finally {
@@ -241,112 +290,188 @@ export default function AskPage() {
   };
 
   return (
-    <div className="min-h-screen pt-16 md:pt-20 pb-20 md:pb-0 flex text-foreground">
+    <div className="min-h-screen pt-16 md:pt-20 pb-20 md:pb-0 flex text-foreground relative overflow-hidden">
+      {/* Backdrop for mobile sidebar drawer */}
+      {!collapsed && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300"
+          onClick={() => setCollapsed(true)}
+        />
+      )}
+
       {/* Sidebar for chat history */}
       <ConversationSidebar
         currentSessionId={sessionId}
         onSessionSelect={handleSessionSelect}
         onNewSession={handleNewSession}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
       />
 
       {/* Main chat layout */}
-      <div className="flex-1 flex flex-col md:flex-row min-w-0 bg-neural-darker/10">
-        
-        {/* Left side: Messages & Input */}
-        <div className="flex-1 flex flex-col min-w-0 border-r border-white/5 relative h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)]">
-          {/* Header */}
-          <div className="p-4 border-b border-white/5 flex items-center gap-4 bg-neural-darker/30 backdrop-blur-md sticky top-0 z-10">
+      <div className="flex-1 flex flex-col min-w-0 bg-neural-darker/10">
+        {/* Header spanning across both views */}
+        <div className="p-4 border-b border-white/5 flex items-center justify-between bg-neural-darker/30 backdrop-blur-md sticky top-0 z-10 w-full h-16">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              className="md:hidden hover:bg-white/5 text-muted-foreground hover:text-foreground shrink-0 h-9 w-9 rounded-xl"
+              title="Toggle Sidebar"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
             <Link href="/">
-              <Button variant="ghost" size="icon" className="hover:bg-white/5 text-muted-foreground hover:text-foreground">
+              <Button variant="ghost" size="icon" className="hover:bg-white/5 text-muted-foreground hover:text-foreground shrink-0 h-9 w-9 rounded-xl">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <div className="flex items-center gap-2">
-              <div>
-                <h2 className="text-sm font-bold text-foreground font-display">Inquiry Terminal</h2>
-                <p className="text-[10px] text-muted-foreground/80">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-foreground font-display truncate">Inquiry Terminal</h2>
+                <p className="text-[10px] text-muted-foreground/80 hidden sm:block">
                   Local execution context warm for agent inference
                 </p>
               </div>
               <div
                 className={cn(
-                  "h-2 w-2 rounded-full ml-1.5 transition-all duration-300 shadow-[0_0_8px_#00e5ff]",
+                  "h-2 w-2 rounded-full ml-1.5 transition-all duration-300 shadow-[0_0_8px_#00e5ff] shrink-0",
                   isLoading ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
                 )}
               />
             </div>
           </div>
 
-          {/* Chat box with subtle mesh gradient background */}
-          <div className="flex-1 overflow-hidden relative">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(0,229,255,0.03),transparent_60%)] pointer-events-none" />
-            <ChatStream
-              messages={messages}
-              streamingMessage={streamingMessage}
-              isLoading={isLoading}
-              onSelectQuestion={handleSelectQuestion}
-            />
-          </div>
-
-          {/* Input form */}
-          <div className="p-4 border-t border-white/5 bg-neural-darker/20">
-            <form onSubmit={handleSend} className="flex gap-2.5 max-w-3xl mx-auto items-center input-glow p-1 rounded-xl bg-white/[0.01] border border-white/5 transition-all duration-300">
-              <Input
-                value={inputQuestion}
-                onChange={(e) => setInputQuestion(e.target.value)}
-                placeholder="Ask I.N.A.Y.A.T. anything..."
-                disabled={isLoading}
-                className="flex-1 border-none bg-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm py-5 shadow-none"
-              />
+          {/* Actions: Tab Switcher & Delete Session */}
+          <div className="flex items-center gap-2">
+            {/* Tab Switcher (Mobile Only) */}
+            <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-0.5 md:hidden">
               <Button
-                type="submit"
-                disabled={isLoading || !inputQuestion.trim()}
-                className="bg-gradient-to-r from-neural-cyan to-neural-purple hover:opacity-90 hover:shadow-[0_0_15px_rgba(0,229,255,0.35)] text-neural-dark font-bold px-4 py-5 rounded-xl transition-all duration-300 shrink-0 h-10 border-none"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-neural-dark" />
-                ) : (
-                  <Send className="h-4 w-4 text-neural-dark" />
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => setActiveTab("chat")}
+                className={cn(
+                  "text-[10px] uppercase tracking-wider px-3 py-1 h-7 rounded-lg transition-all duration-300 font-bold",
+                  activeTab === "chat"
+                    ? "bg-neural-cyan/15 text-neural-cyan"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
+              >
+                Chat
               </Button>
-            </form>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => setActiveTab("metrics")}
+                className={cn(
+                  "text-[10px] uppercase tracking-wider px-3 py-1 h-7 rounded-lg transition-all duration-300 font-bold",
+                  activeTab === "metrics"
+                    ? "bg-neural-purple/15 text-neural-purple"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Metrics
+              </Button>
+            </div>
+
+            {/* Trash/Delete Active Session Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              onClick={handleDeleteActiveSession}
+              className="text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 h-9 w-9 rounded-xl transition-all duration-300 shrink-0"
+              title="Delete Current Session"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
-        {/* Right side: Graph & Citation metrics panel */}
-        <div className="w-full md:w-80 lg:w-96 p-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-4rem)] md:max-h-[calc(100vh-5rem)] bg-neural-darker/25">
-          
-          <div className="grid grid-cols-1 gap-4 items-start">
-            <div className="flex gap-4">
-              {/* Confidence Gauge */}
-              <ConfidenceGauge value={confidence} />
-              
-              {/* Context Summary card */}
-              <Card className="glass-premium flex-1 border-white/5 p-4">
-                <CardContent className="p-0 flex flex-col justify-between h-full min-h-[90px]">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
-                    Retrieval Mode
-                  </span>
-                  <div className="text-xs font-semibold mt-1">
-                    {citations.length > 0 ? (
-                      <span className="text-emerald-400">RAG Pipeline</span>
-                    ) : (
-                      <span className="text-muted-foreground">General Knowledge</span>
-                    )}
-                  </div>
-                  <span className="text-[9px] text-muted-foreground/60 leading-tight block mt-3">
-                    Dense + sparse BM25 reranked on CPU.
-                  </span>
-                </CardContent>
-              </Card>
+        {/* Content body split relative */}
+        <div className="flex-1 flex flex-col md:flex-row min-w-0 relative">
+          {/* Left side: Messages & Input */}
+          <div className={cn(
+            "flex-1 flex flex-col min-w-0 border-r border-white/5 relative h-[calc(100vh-13rem)] md:h-[calc(100vh-9rem)]",
+            activeTab === "chat" ? "flex" : "hidden md:flex"
+          )}>
+            {/* Chat box with subtle mesh gradient background */}
+            <div className="flex-1 overflow-hidden relative">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(0,229,255,0.03),transparent_60%)] pointer-events-none" />
+              <ChatStream
+                messages={messages}
+                streamingMessage={streamingMessage}
+                isLoading={isLoading}
+                onSelectQuestion={handleSelectQuestion}
+              />
             </div>
 
-            {/* Citation Badges */}
-            <CitationBadges citations={citations} />
+            {/* Input form */}
+            <div className="p-4 border-t border-white/5 bg-neural-darker/20">
+              <form onSubmit={handleSend} className="flex gap-2.5 max-w-3xl mx-auto items-center input-glow p-1 rounded-xl bg-white/[0.01] border border-white/5 transition-all duration-300">
+                <Input
+                  value={inputQuestion}
+                  onChange={(e) => setInputQuestion(e.target.value)}
+                  placeholder="Ask I.N.A.Y.A.T. anything..."
+                  disabled={isLoading}
+                  className="flex-1 border-none bg-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm py-5 shadow-none"
+                />
+                <Button
+                  type="submit"
+                  disabled={isLoading || !inputQuestion.trim()}
+                  className="bg-gradient-to-r from-neural-cyan to-neural-purple hover:opacity-90 hover:shadow-[0_0_15px_rgba(0,229,255,0.35)] text-neural-dark font-bold px-4 py-5 rounded-xl transition-all duration-300 shrink-0 h-10 border-none"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-neural-dark" />
+                  ) : (
+                    <Send className="h-4 w-4 text-neural-dark" />
+                  )}
+                </Button>
+              </form>
+            </div>
+          </div>
 
-            {/* Subgraph visualization */}
-            <div className="h-[360px] md:h-[420px]">
-              <KnowledgeGraph nodes={graphData.nodes} edges={graphData.edges} height={365} />
+          {/* Right side: Graph & Citation metrics panel */}
+          <div className={cn(
+            "w-full md:w-80 lg:w-96 p-4 flex flex-col gap-4 overflow-y-auto h-[calc(100vh-13rem)] md:h-[calc(100vh-9rem)] bg-neural-darker/25 shrink-0",
+            activeTab === "metrics" ? "flex" : "hidden md:flex"
+          )}>
+            <div className="grid grid-cols-1 gap-4 items-start">
+              <div className="flex gap-4">
+                {/* Confidence Gauge */}
+                <ConfidenceGauge value={confidence} />
+                
+                {/* Context Summary card */}
+                <Card className="glass-premium flex-1 border-white/5 p-4">
+                  <CardContent className="p-0 flex flex-col justify-between h-full min-h-[90px]">
+                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
+                      Retrieval Mode
+                    </span>
+                    <div className="text-xs font-semibold mt-1">
+                      {citations.length > 0 ? (
+                        <span className="text-emerald-400">RAG Pipeline</span>
+                      ) : (
+                        <span className="text-muted-foreground">General Knowledge</span>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-muted-foreground/60 leading-tight block mt-3">
+                      Dense + sparse BM25 reranked on CPU.
+                    </span>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Citation Badges */}
+              <CitationBadges citations={citations} />
+
+              {/* Subgraph visualization */}
+              <div className="h-[360px] md:h-[420px]">
+                <KnowledgeGraph nodes={graphData.nodes} edges={graphData.edges} height={365} />
+              </div>
             </div>
           </div>
         </div>

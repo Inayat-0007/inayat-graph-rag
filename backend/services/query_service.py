@@ -184,9 +184,9 @@ async def orchestrate_query(
             return
         
     # 7. Post-process to parse confidence and citations
-    # Extract confidence score (e.g. "Confidence: 85%", "Confidence: ~95%", "confidence score: 90%")
+    # Extract confidence score (e.g. "Confidence: 85%", "Confidence: ~95%", "confidence score is 90%", "confidence level: 85%")
     confidence_match = re.search(
-        r"confidence\s*(?:score|is|:|approximately|~)?\s*~?\s*(\d+)\s*%",
+        r"confidence\s*(?:score|level|is|approx|approximately|rating)*\s*[^0-9a-zA-Z]*\s*(\d+)\s*%",
         full_response,
         re.IGNORECASE,
     )

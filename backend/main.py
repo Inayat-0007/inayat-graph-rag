@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.config import DB_PATH, COLLECTION_NAME, CORS_ORIGINS, NEO4J_PASSWORD
-from backend.services import qdrant_service, neo4j_service, memory_service
+from backend.services import qdrant_service, neo4j_service, memory_service, ollama_service
 from backend.routers import upload, documents, graph, health, query, history
 
 # Configure logging
@@ -64,6 +64,18 @@ async def lifespan(app: FastAPI):
 
     # === SHUTDOWN ===
     logger.info("I.N.A.Y.A.T. API shutting down...")
+
+    # Close Ollama HTTP client
+    try:
+        await ollama_service.close_client()
+    except Exception as e:
+        logger.error(f"Error closing Ollama client: {e}")
+
+    # Close Qdrant client
+    try:
+        qdrant_service.close()
+    except Exception as e:
+        logger.error(f"Error closing Qdrant client: {e}")
 
     # Close Neo4j driver
     try:

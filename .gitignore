@@ -22,3 +22,9 @@ frontend/out/
 
 # Agent metadata
 .agents/
+
+# Scratch / debug scripts
+scratch/
+
+# Build artifacts
+*.tsbuildinfo

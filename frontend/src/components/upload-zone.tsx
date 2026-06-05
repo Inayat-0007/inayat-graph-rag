@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, File, FileUp, CheckCircle2, AlertCircle, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { uploadDocument, UploadResponse } from "@/lib/api";
+import toast from "react-hot-toast";
 
 interface UploadZoneProps {
   onUploadSuccess?: (data: UploadResponse) => void;
@@ -13,7 +14,8 @@ interface UploadZoneProps {
 const UPLOAD_STEPS = [
   "Extracting Document Text",
   "Computing Neural Vector Embeddings",
-  "Constructing Knowledge Graph Schema",
+  "Building Knowledge Graph Entities",
+  "Finalizing Index",
 ];
 
 export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
@@ -40,12 +42,14 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
           const increment = Math.floor(Math.random() * 8) + 2;
           const next = prev + increment;
           
-          if (next < 35) {
+          if (next < 30) {
             setActiveStep(0);
-          } else if (next < 75) {
+          } else if (next < 60) {
             setActiveStep(1);
-          } else {
+          } else if (next < 85) {
             setActiveStep(2);
+          } else {
+            setActiveStep(3);
           }
           return Math.min(next, 96);
         });
@@ -78,20 +82,23 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
     try {
       const data = await uploadDocument(file);
       setProgress(100);
-      setActiveStep(2);
+      setActiveStep(3);
       
       // Delay success display briefly so the 100% completion renders
       setTimeout(() => {
         setResult(data);
         setStatus("success");
+        toast.success(`"${data.filename}" ingested — ${data.chunk_count} chunks, ${data.entity_count} entities`, { duration: 5000 });
         if (onUploadSuccess) {
           onUploadSuccess(data);
         }
       }, 600);
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || "Something went wrong during upload");
+      const msg = err.message || "Something went wrong during upload";
+      setErrorMsg(msg);
       setStatus("error");
+      toast.error(`Upload failed: ${msg}`);
     }
   };
 

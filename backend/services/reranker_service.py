@@ -16,7 +16,7 @@ RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 # Lazy-loaded model singleton
 _model = None
-_model_load_failed = False
+_import_failed = False
 
 
 def _get_model():
@@ -25,24 +25,30 @@ def _get_model():
 
     Returns the model instance, or None if loading failed.
     """
-    global _model, _model_load_failed
+    global _model, _import_failed
 
     if _model is not None:
         return _model
 
-    if _model_load_failed:
+    if _import_failed:
         return None
 
+    # Check import first (if sentence-transformers is not installed, it is a permanent error)
     try:
         from sentence_transformers import CrossEncoder
+    except ImportError as e:
+        _import_failed = True
+        logger.error(f"sentence-transformers package is not installed: {e}")
+        return None
 
+    # Try downloading and loading the model (if HF download fails, we allow retrying on next query)
+    try:
         logger.info(f"Loading reranker model: {RERANKER_MODEL} (CPU-only, ~80MB)...")
         _model = CrossEncoder(RERANKER_MODEL, max_length=512, device="cpu")
         logger.info(f"Reranker model loaded successfully: {RERANKER_MODEL}")
         return _model
     except Exception as e:
-        _model_load_failed = True
-        logger.error(f"Failed to load reranker model '{RERANKER_MODEL}': {e}")
+        logger.error(f"Failed to load/download reranker model '{RERANKER_MODEL}': {e}")
         return None
 
 

@@ -4,6 +4,7 @@ import "./globals.css";
 import NavBar from "@/components/nav-bar";
 import PageTransition from "@/components/page-transition";
 import CommandPalette from "@/components/command-palette";
+import ToastProvider from "@/components/toast-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
@@ -27,6 +28,7 @@ export default function RootLayout({
         <NavBar />
         <CommandPalette />
         <PageTransition>{children}</PageTransition>
+        <ToastProvider />
       </body>
     </html>
   );

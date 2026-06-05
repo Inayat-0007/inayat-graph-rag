@@ -57,10 +57,18 @@ function ParticleField({ count }: ParticleFieldProps) {
     return geom;
   }, [linePositions, lineColors]);
 
+  const scrollRef = useRef(0);
+
   // Clean up WebGL geometry resources on unmount
   useEffect(() => {
+    const handleScroll = () => {
+      scrollRef.current = window.scrollY;
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    
     return () => {
       lineGeometry.dispose();
+      window.removeEventListener("scroll", handleScroll);
     };
   }, [lineGeometry]);
 
@@ -81,9 +89,17 @@ function ParticleField({ count }: ParticleFieldProps) {
     meshRef.current.rotation.y += (targetX - meshRef.current.rotation.y) * 0.06;
     meshRef.current.rotation.x += (targetY - meshRef.current.rotation.x) * 0.06;
     
+    // Scroll Parallax: subtle camera zoom and rotation drift
+    const scrollFactor = scrollRef.current * 0.0004;
+    meshRef.current.rotation.z = scrollFactor * 0.3;
+    
+    const targetZ = 8 - Math.min(scrollRef.current * 0.002, 3.5);
+    state.camera.position.z += (targetZ - state.camera.position.z) * 0.08;
+    
     if (linesRef.current) {
       linesRef.current.rotation.y = meshRef.current.rotation.y;
       linesRef.current.rotation.x = meshRef.current.rotation.x;
+      linesRef.current.rotation.z = meshRef.current.rotation.z;
     }
 
     const posArray = meshRef.current.geometry.attributes.position

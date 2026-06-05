@@ -59,6 +59,9 @@ const config: Config = {
           dark: "#0a0a1a",
           darker: "#050510",
           card: "rgba(15, 15, 35, 0.7)",
+          glow: "rgba(0, 229, 255, 0.15)",
+          accent: "#7c4dff",
+          surface: "rgba(15, 15, 35, 0.5)",
         },
       },
       fontFamily: {
@@ -69,6 +72,12 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        "2xl": "1rem",
+        "3xl": "1.5rem",
+      },
+      backdropBlur: {
+        "2xl": "40px",
+        "3xl": "64px",
       },
       keyframes: {
         "glass-shimmer": {
@@ -91,6 +100,34 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0px)" },
           "50%": { transform: "translateY(-10px)" },
         },
+        "slide-up": {
+          "0%": { opacity: "0", transform: "translateY(30px) scale(0.97)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        "slide-down": {
+          "0%": { opacity: "0", transform: "translateY(-10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "scale-in": {
+          "0%": { opacity: "0", transform: "scale(0.9)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "glow-breathe": {
+          "0%, 100%": { boxShadow: "0 0 10px rgba(0, 229, 255, 0.2)" },
+          "50%": { boxShadow: "0 0 25px rgba(0, 229, 255, 0.4), 0 0 50px rgba(0, 229, 255, 0.15)" },
+        },
+        "border-flow": {
+          "0%, 100%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" },
+        },
+        "spin-slow": {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" },
+        },
+        "orbit": {
+          "0%": { transform: "rotate(0deg) translateX(30px) rotate(0deg)" },
+          "100%": { transform: "rotate(360deg) translateX(30px) rotate(-360deg)" },
+        },
       },
       animation: {
         "glass-shimmer": "glass-shimmer 3s ease-in-out infinite",
@@ -98,9 +135,19 @@ const config: Config = {
         "gradient-x": "gradient-x 3s ease infinite",
         "fade-in-up": "fade-in-up 0.5s ease-out",
         "float": "float 3s ease-in-out infinite",
+        "slide-up": "slide-up 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
+        "slide-down": "slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+        "scale-in": "scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+        "glow-breathe": "glow-breathe 3s ease-in-out infinite",
+        "border-flow": "border-flow 3s ease infinite",
+        "spin-slow": "spin-slow 8s linear infinite",
+        "orbit": "orbit 6s linear infinite",
       },
       backgroundSize: {
         "300%": "300%",
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },

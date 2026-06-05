@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, FileText, File, FileUp, CheckCircle2, AlertCircle, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { uploadDocument, UploadResponse } from "@/lib/api";
 
@@ -10,12 +10,49 @@ interface UploadZoneProps {
   onUploadSuccess?: (data: UploadResponse) => void;
 }
 
+const UPLOAD_STEPS = [
+  "Extracting Document Text",
+  "Computing Neural Vector Embeddings",
+  "Constructing Knowledge Graph Schema",
+];
+
 export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
   const [dragActive, setDragActive] = useState(false);
   const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [result, setResult] = useState<UploadResponse | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [activeStep, setActiveStep] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Simulated progress ticker during ingestion
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (status === "uploading") {
+      setProgress(5);
+      setActiveStep(0);
+      interval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 96) {
+            clearInterval(interval);
+            return prev;
+          }
+          const increment = Math.floor(Math.random() * 8) + 2;
+          const next = prev + increment;
+          
+          if (next < 35) {
+            setActiveStep(0);
+          } else if (next < 75) {
+            setActiveStep(1);
+          } else {
+            setActiveStep(2);
+          }
+          return Math.min(next, 96);
+        });
+      }, 350);
+    }
+    return () => clearInterval(interval);
+  }, [status]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -28,7 +65,6 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
   };
 
   const processFile = async (file: File) => {
-    // Client-side file extension check (P3 | H5)
     const allowedExtensions = [".pdf", ".docx", ".txt"];
     const fileExtension = "." + file.name.split(".").pop()?.toLowerCase();
     if (!allowedExtensions.includes(fileExtension)) {
@@ -41,11 +77,17 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
     setErrorMsg("");
     try {
       const data = await uploadDocument(file);
-      setResult(data);
-      setStatus("success");
-      if (onUploadSuccess) {
-        onUploadSuccess(data);
-      }
+      setProgress(100);
+      setActiveStep(2);
+      
+      // Delay success display briefly so the 100% completion renders
+      setTimeout(() => {
+        setResult(data);
+        setStatus("success");
+        if (onUploadSuccess) {
+          onUploadSuccess(data);
+        }
+      }, 600);
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || "Something went wrong during upload");
@@ -78,27 +120,37 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
     setStatus("idle");
     setErrorMsg("");
     setResult(null);
+    setProgress(0);
+    setActiveStep(0);
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
       <AnimatePresence mode="wait">
         {status === "idle" && (
           <motion.div
             key="idle"
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl glass-card transition-all duration-300 ${
+            exit={{ opacity: 0, y: -12 }}
+            className={`relative flex flex-col items-center justify-center p-10 border-2 rounded-2xl glass-premium overflow-hidden transition-all duration-350 ${
               dragActive
-                ? "border-primary/80 bg-primary/5 scale-[1.01]"
-                : "border-muted-foreground/30 hover:border-primary/50"
+                ? "border-neural-cyan bg-neural-cyan/5 scale-[1.03] shadow-[0_0_30px_rgba(0,229,255,0.25)]"
+                : "border-dashed border-white/10 hover:border-neural-cyan/40 upload-border-pulse"
             }`}
             onDragEnter={handleDrag}
             onDragOver={handleDrag}
             onDragLeave={handleDrag}
             onDrop={handleDrop}
           >
+            {/* Background Floating Decorative Icons */}
+            <div className="absolute inset-0 pointer-events-none opacity-[0.03] -z-10">
+              <FileText className="absolute top-4 left-6 h-12 w-12 rotate-12" />
+              <File className="absolute bottom-6 left-16 h-10 w-10 -rotate-6" />
+              <FileUp className="absolute top-10 right-10 h-16 w-16 rotate-[15deg]" />
+              <FileText className="absolute bottom-8 right-12 h-11 w-11 -rotate-12" />
+            </div>
+
             <input
               ref={inputRef}
               type="file"
@@ -107,18 +159,25 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
               onChange={handleChange}
             />
 
-            <Upload className="h-12 w-12 text-muted-foreground mb-4 animate-pulse" />
+            <div className="p-4 bg-white/5 border border-white/10 rounded-full mb-4 shadow-inner group-hover:scale-105 transition-all duration-300">
+              <Upload className="h-10 w-10 text-neural-cyan animate-float" />
+            </div>
 
-            <h3 className="text-lg font-medium text-foreground mb-1">
+            <h3 className="text-lg font-bold text-foreground mb-1 font-display tracking-wide">
               Drag & drop document here
             </h3>
-            <p className="text-xs text-muted-foreground mb-4 text-center max-w-xs">
-              Supports PDF, DOCX, and TXT up to 50 MB
+            <p className="text-xs text-muted-foreground/80 mb-6 text-center max-w-xs leading-normal">
+              Accepting PDF, DOCX, and TXT files up to 50 MB for Graph RAG indexing.
             </p>
 
-            <Button onClick={onButtonClick} variant="outline" className="relative overflow-hidden group">
-              <span className="relative z-10">Choose File</span>
-              <div className="absolute inset-0 bg-primary/10 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300" />
+            <Button
+              onClick={onButtonClick}
+              className="relative overflow-hidden group bg-gradient-to-r from-neural-cyan/80 to-neural-purple/80 hover:from-neural-cyan hover:to-neural-purple text-neural-dark font-bold px-6 py-2.5 rounded-xl transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,229,255,0.4)] border-none"
+            >
+              <span className="relative z-10 flex items-center gap-1.5">
+                <FileUp className="h-4 w-4" />
+                Select Workspace File
+              </span>
             </Button>
           </motion.div>
         )}
@@ -126,16 +185,33 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
         {status === "uploading" && (
           <motion.div
             key="uploading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center p-12 rounded-2xl glass-card border border-muted-foreground/20"
+            className="flex flex-col items-center justify-center p-12 rounded-2xl glass-premium border border-white/5"
           >
-            <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-1">Ingesting Document</h3>
-            <p className="text-xs text-muted-foreground text-center">
-              Extracting text, computing vector embeddings, and mapping knowledge graph nodes...
-            </p>
+            {/* Pulsing Neural Nodes Loading Visual */}
+            <div className="relative h-20 w-20 mb-6 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-2 border-neural-cyan/20 border-t-neural-cyan animate-spin" />
+              <div className="absolute inset-2.5 rounded-full border-2 border-neural-purple/20 border-b-neural-purple animate-spin-slow" />
+              <Brain className="h-8 w-8 text-neural-cyan animate-pulse" />
+            </div>
+
+            <h3 className="text-lg font-bold text-foreground mb-1 font-display tracking-wide">
+              Agent Ingestion Pipeline
+            </h3>
+            <span className="text-xs text-neural-cyan uppercase tracking-wider font-semibold animate-pulse mb-6">
+              {UPLOAD_STEPS[activeStep]}
+            </span>
+
+            {/* Glowing Shimmer Progress Bar */}
+            <div className="w-full max-w-sm h-2.5 bg-white/5 border border-white/10 rounded-full overflow-hidden relative shimmer mb-2">
+              <div
+                className="h-full bg-gradient-to-r from-neural-cyan via-neural-purple to-neural-cyan transition-all duration-300 rounded-full shadow-[0_0_10px_#00e5ff]"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground font-mono">{progress}% Complete</span>
           </motion.div>
         )}
 
@@ -145,27 +221,38 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl glass-card border border-emerald-500/30 bg-emerald-500/5 text-center"
+            className="flex flex-col items-center justify-center p-8 rounded-2xl glass-premium border border-emerald-500/30 bg-emerald-500/[0.02] text-center relative overflow-hidden"
           >
-            <CheckCircle2 className="h-12 w-12 text-emerald-500 mb-3" />
-            <h3 className="text-lg font-semibold text-foreground mb-1">Ingestion Complete</h3>
-            <p className="text-sm font-medium text-emerald-400/90 mb-4 truncate max-w-md">
+            {/* Interactive Particle Burst Effects */}
+            <div className="absolute inset-0 pointer-events-none">
+              <motion.div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-400" initial={{ width: 0, height: 0, opacity: 0.8 }} animate={{ width: 180, height: 180, opacity: 0 }} transition={{ duration: 0.8, ease: "easeOut" }} />
+              <motion.div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-400" initial={{ width: 0, height: 0, opacity: 0.6 }} animate={{ width: 280, height: 280, opacity: 0 }} transition={{ duration: 1.1, delay: 0.1, ease: "easeOut" }} />
+            </div>
+
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 rounded-full mb-4 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+              <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+            </div>
+
+            <h3 className="text-lg font-bold text-foreground mb-1 font-display tracking-wide">
+              Ingestion Complete
+            </h3>
+            <p className="text-xs font-semibold text-emerald-400/90 mb-6 truncate max-w-sm font-mono bg-emerald-500/10 px-3 py-1 rounded-md border border-emerald-500/20">
               {result.filename}
             </p>
 
-            <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-6 text-left">
-              <div className="bg-background/40 p-3 rounded-lg border border-muted-foreground/10 text-center">
-                <span className="text-xs text-muted-foreground block">Chunks</span>
-                <span className="text-lg font-bold text-foreground">{result.chunk_count}</span>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-6">
+              <div className="bg-white/[0.02] p-4 rounded-xl border border-white/5 shadow-inner">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block mb-1">Text Chunks</span>
+                <span className="text-2xl font-bold text-foreground font-display">{result.chunk_count}</span>
               </div>
-              <div className="bg-background/40 p-3 rounded-lg border border-muted-foreground/10 text-center">
-                <span className="text-xs text-muted-foreground block">Entities</span>
-                <span className="text-lg font-bold text-foreground">{result.entity_count}</span>
+              <div className="bg-white/[0.02] p-4 rounded-xl border border-white/5 shadow-inner">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block mb-1">KG Relations</span>
+                <span className="text-2xl font-bold text-foreground font-display">{result.entity_count}</span>
               </div>
             </div>
 
-            <Button onClick={reset} variant="ghost" className="text-xs hover:bg-emerald-500/10 text-muted-foreground hover:text-foreground">
-              Upload Another
+            <Button onClick={reset} variant="ghost" className="text-xs hover:bg-emerald-500/10 text-muted-foreground hover:text-foreground font-semibold px-4 py-2 rounded-xl transition-all">
+              Upload Another File
             </Button>
           </motion.div>
         )}
@@ -176,19 +263,22 @@ export default function UploadZone({ onUploadSuccess }: UploadZoneProps) {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl glass-card border border-rose-500/30 bg-rose-500/5 text-center"
+            className="flex flex-col items-center justify-center p-8 rounded-2xl glass-premium border border-rose-500/30 bg-rose-500/[0.02] text-center shadow-[0_0_30px_rgba(244,63,94,0.08)]"
           >
-            <AlertCircle className="h-12 w-12 text-rose-500 mb-3" />
-            <h3 className="text-lg font-semibold text-foreground mb-1">Ingestion Failed</h3>
-            <p className="text-xs text-rose-400 mb-6 max-w-sm">
+            <div className="p-3 bg-rose-500/10 border border-rose-500/25 rounded-full mb-4 shadow-[0_0_15px_rgba(244,63,94,0.2)]">
+              <AlertCircle className="h-10 w-10 text-rose-400" />
+            </div>
+
+            <h3 className="text-lg font-bold text-foreground mb-1 font-display tracking-wide">
+              Ingestion Failed
+            </h3>
+            <p className="text-xs text-rose-400/90 mb-6 max-w-xs leading-relaxed">
               {errorMsg}
             </p>
 
-            <div className="flex gap-2">
-              <Button onClick={reset} variant="outline" size="sm">
-                Try Again
-              </Button>
-            </div>
+            <Button onClick={reset} className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 font-semibold px-5 py-2 rounded-xl transition-all">
+              Try Again
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>

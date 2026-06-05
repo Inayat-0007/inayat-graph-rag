@@ -65,8 +65,8 @@ function ParticleField({ count }: ParticleFieldProps) {
   }, [lineGeometry]);
 
 
-  // Cap at ~45fps by skipping frames
-  useFrame((_, delta) => {
+  // Cap at ~45fps by skipping frames and apply mouse parallax
+  useFrame((state, delta) => {
     frameCount.current++;
     // Skip every other frame to maintain ~45fps cap
     if (frameCount.current % 2 !== 0) return;
@@ -74,6 +74,18 @@ function ParticleField({ count }: ParticleFieldProps) {
     timeRef.current += delta;
 
     if (!meshRef.current) return;
+    
+    // Smooth Mouse Parallax Rotation
+    const targetX = state.pointer.x * 0.35;
+    const targetY = state.pointer.y * 0.35;
+    meshRef.current.rotation.y += (targetX - meshRef.current.rotation.y) * 0.06;
+    meshRef.current.rotation.x += (targetY - meshRef.current.rotation.x) * 0.06;
+    
+    if (linesRef.current) {
+      linesRef.current.rotation.y = meshRef.current.rotation.y;
+      linesRef.current.rotation.x = meshRef.current.rotation.x;
+    }
+
     const posArray = meshRef.current.geometry.attributes.position
       .array as Float32Array;
 

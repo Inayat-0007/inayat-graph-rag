@@ -13,6 +13,7 @@ import ConfidenceGauge from "@/components/confidence-gauge";
 import CitationBadges, { Citation } from "@/components/citation-badges";
 import KnowledgeGraph from "@/components/knowledge-graph";
 import { queryStream, parseSSEStream, fetchHistory, fetchSessions } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface Message {
   role: string;
@@ -130,12 +131,9 @@ export default function AskPage() {
     loadHistory(newSessId);
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const query = inputQuestion.trim();
+  const submitQuestion = async (query: string) => {
     if (!query || isLoading) return;
 
-    setInputQuestion("");
     setIsLoading(true);
     setStreamingMessage("");
     
@@ -228,6 +226,20 @@ export default function AskPage() {
     }
   };
 
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = inputQuestion.trim();
+    if (query) {
+      setInputQuestion("");
+      submitQuestion(query);
+    }
+  };
+
+  const handleSelectQuestion = (q: string) => {
+    if (isLoading) return;
+    submitQuestion(q);
+  };
+
   return (
     <div className="min-h-screen pt-16 md:pt-20 pb-20 md:pb-0 flex text-foreground">
       {/* Sidebar for chat history */}
@@ -238,51 +250,63 @@ export default function AskPage() {
       />
 
       {/* Main chat layout */}
-      <div className="flex-1 flex flex-col md:flex-row min-w-0 bg-background/5">
+      <div className="flex-1 flex flex-col md:flex-row min-w-0 bg-neural-darker/10">
         
         {/* Left side: Messages & Input */}
-        <div className="flex-1 flex flex-col min-w-0 border-r border-muted-foreground/10 relative h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)]">
+        <div className="flex-1 flex flex-col min-w-0 border-r border-white/5 relative h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)]">
           {/* Header */}
-          <div className="p-4 border-b border-muted-foreground/10 flex items-center gap-4 bg-background/20 backdrop-blur-md sticky top-0 z-10">
+          <div className="p-4 border-b border-white/5 flex items-center gap-4 bg-neural-darker/30 backdrop-blur-md sticky top-0 z-10">
             <Link href="/">
-              <Button variant="ghost" size="icon" className="hover:bg-primary/10">
+              <Button variant="ghost" size="icon" className="hover:bg-white/5 text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <div>
-              <h2 className="text-sm font-bold text-foreground">Agent Inquiry Panel</h2>
-              <p className="text-[10px] text-muted-foreground">
-                Local inference warm for follow-up
-              </p>
+            <div className="flex items-center gap-2">
+              <div>
+                <h2 className="text-sm font-bold text-foreground font-display">Inquiry Terminal</h2>
+                <p className="text-[10px] text-muted-foreground/80">
+                  Local execution context warm for agent inference
+                </p>
+              </div>
+              <div
+                className={cn(
+                  "h-2 w-2 rounded-full ml-1.5 transition-all duration-300 shadow-[0_0_8px_#00e5ff]",
+                  isLoading ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
+                )}
+              />
             </div>
           </div>
 
-          {/* Chat box */}
-          <ChatStream
-            messages={messages}
-            streamingMessage={streamingMessage}
-            isLoading={isLoading}
-          />
+          {/* Chat box with subtle mesh gradient background */}
+          <div className="flex-1 overflow-hidden relative">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(0,229,255,0.03),transparent_60%)] pointer-events-none" />
+            <ChatStream
+              messages={messages}
+              streamingMessage={streamingMessage}
+              isLoading={isLoading}
+              onSelectQuestion={handleSelectQuestion}
+            />
+          </div>
 
           {/* Input form */}
-          <div className="p-4 border-t border-muted-foreground/10 bg-background/25">
-            <form onSubmit={handleSend} className="flex gap-2 max-w-3xl mx-auto">
+          <div className="p-4 border-t border-white/5 bg-neural-darker/20">
+            <form onSubmit={handleSend} className="flex gap-2.5 max-w-3xl mx-auto items-center input-glow p-1 rounded-xl bg-white/[0.01] border border-white/5 transition-all duration-300">
               <Input
                 value={inputQuestion}
                 onChange={(e) => setInputQuestion(e.target.value)}
                 placeholder="Ask I.N.A.Y.A.T. anything..."
                 disabled={isLoading}
-                className="flex-1 border-muted-foreground/20 bg-background/40 hover:border-primary/45 focus:border-primary text-sm rounded-xl py-5"
+                className="flex-1 border-none bg-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm py-5 shadow-none"
               />
               <Button
                 type="submit"
                 disabled={isLoading || !inputQuestion.trim()}
-                className="rounded-xl px-4 py-5"
+                className="bg-gradient-to-r from-neural-cyan to-neural-purple hover:opacity-90 hover:shadow-[0_0_15px_rgba(0,229,255,0.35)] text-neural-dark font-bold px-4 py-5 rounded-xl transition-all duration-300 shrink-0 h-10 border-none"
               >
                 {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-neural-dark" />
                 ) : (
-                  <Send className="h-4 w-4" />
+                  <Send className="h-4 w-4 text-neural-dark" />
                 )}
               </Button>
             </form>
@@ -290,7 +314,7 @@ export default function AskPage() {
         </div>
 
         {/* Right side: Graph & Citation metrics panel */}
-        <div className="w-full md:w-80 lg:w-96 p-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-4rem)] md:max-h-[calc(100vh-5rem)] bg-background/10">
+        <div className="w-full md:w-80 lg:w-96 p-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-4rem)] md:max-h-[calc(100vh-5rem)] bg-neural-darker/25">
           
           <div className="grid grid-cols-1 gap-4 items-start">
             <div className="flex gap-4">
@@ -298,19 +322,19 @@ export default function AskPage() {
               <ConfidenceGauge value={confidence} />
               
               {/* Context Summary card */}
-              <Card className="glass-card flex-1 border-muted-foreground/10 bg-background/20 p-4">
+              <Card className="glass-premium flex-1 border-white/5 p-4">
                 <CardContent className="p-0 flex flex-col justify-between h-full min-h-[90px]">
                   <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
                     Retrieval Mode
                   </span>
                   <div className="text-xs font-semibold mt-1">
                     {citations.length > 0 ? (
-                      <span className="text-emerald-400">RAG Injected</span>
+                      <span className="text-emerald-400">RAG Pipeline</span>
                     ) : (
-                      <span className="text-muted-foreground">Synthesized</span>
+                      <span className="text-muted-foreground">General Knowledge</span>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted-foreground leading-tight block mt-3">
+                  <span className="text-[9px] text-muted-foreground/60 leading-tight block mt-3">
                     Dense + sparse BM25 reranked on CPU.
                   </span>
                 </CardContent>

@@ -8,7 +8,7 @@ services:
       - "7474:7474"
       - "7687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/inayat2026
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-inayat2026}
       - NEO4J_server_memory_heap_initial__size=512m
       - NEO4J_server_memory_heap_max__size=1536m
       - NEO4J_server_memory_pagecache_size=256m
@@ -16,7 +16,7 @@ services:
       - neo4j_data:/data
     mem_limit: 2g
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "inayat2026", "RETURN 1"]
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD:-inayat2026}", "RETURN 1"]
       interval: 10s
       timeout: 10s
       retries: 10

@@ -7,6 +7,19 @@ Write-Host "=============================================" -ForegroundColor Gree
 Write-Host "  I.N.A.Y.A.T. Environment Launcher (Windows) " -ForegroundColor Green
 Write-Host "=============================================" -ForegroundColor Green
 
+# Step 0: Check and kill any processes occupying port 8000 or 3000 to prevent collisions
+Write-Host "`nChecking for active processes on ports 8000 and 3000..." -ForegroundColor Yellow
+$ports = @(8000, 3000)
+foreach ($port in $ports) {
+    $proc = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    if ($proc) {
+        $pidToKill = $proc.OwningProcess[0]
+        Write-Host "  Stopping process running on port $port (PID: $pidToKill)..." -ForegroundColor Cyan
+        Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+    }
+}
+
 # Step 1: Set Ollama environment variables
 Write-Host "`n[1/5] Setting Ollama environment variables..." -ForegroundColor Yellow
 $env:OLLAMA_FLASH_ATTENTION = 1
